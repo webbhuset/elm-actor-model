@@ -4,8 +4,9 @@ import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as Events
 import Webbhuset.Component as Component
-import Webbhuset.Actor as Actor exposing (Actor, PID)
+import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
+import Webbhuset.Internal.PID exposing (PID(..))
 import Dict exposing (Dict)
 
 type alias Model m msgIn = System.Model Component (Process m msgIn)
@@ -36,14 +37,9 @@ testUI ui title cases =
 initApp : String -> Msg msgIn
 initApp title =
     System.batch
-        [ System.spawn DevComponent
-            ( \pid ->
-                System.batch
-                    [ System.addView pid
-                    , System.sendToPID pid
-                        ( System.msgTo <| DevMsg <| SetTitle title )
-                    ]
-            )
+        [ System.spawnSingleton DevComponent
+        , System.sendToSingleton DevComponent
+            ( System.msgTo <| DevMsg <| SetTitle title )
         ]
 
 
@@ -57,12 +53,14 @@ testedMapIn globalMsg =
             Nothing
 
 
-testedMapOut : msgOut -> Msg msgIn
-testedMapOut componentMsg =
-    let
-        _ = Debug.log "MsgOut" componentMsg
-    in
-    System.none
+testedMapOut : PID -> msgOut -> Msg msgIn
+testedMapOut pid componentMsg =
+    componentMsg
+        |> Debug.toString
+        |> AddOutMsg pid
+        |> DevMsg
+        |> System.msgTo
+        |> System.sendToSingleton DevComponent
 
 
 -- SYSTEM
@@ -89,7 +87,7 @@ spawn : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -
 spawn tests tested name =
     case name of
         DevComponent ->
-            .init (container tests)
+            .init (actor tests)
 
         TestedComponent ->
             tested.init
@@ -99,7 +97,7 @@ applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msg
 applyModel tests tested process =
     case process of
         P_Dev model ->
-            Actor.applyModel (container tests) model
+            Actor.applyModel (actor tests) model
 
         P_Component model ->
             Actor.applyModel tested model
@@ -108,8 +106,8 @@ applyModel tests tested process =
 -- CONTAINER
 
 
-container : List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
-container tests =
+actor : List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
+actor tests =
     Actor.fromLayout
         P_Dev
         DevMsg
@@ -128,8 +126,8 @@ mapIn globalMsg =
             Nothing
 
 
-mapOut : MsgOut msgIn -> (Msg msgIn)
-mapOut componentMsg =
+mapOut : PID -> MsgOut msgIn -> (Msg msgIn)
+mapOut p componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
             System.spawn TestedComponent
@@ -157,10 +155,16 @@ type alias TestCase msgIn =
     }
 
 
+type alias Child =
+    { pid : PID
+    , outMsgs : List String
+    }
+
+
 type alias DevModel msgIn =
     { pid : PID
     , cases : Dict Int (TestCase msgIn)
-    , pids : Dict Int PID
+    , pids : Dict Int Child
     , bgColor : String
     , title : String
     }
@@ -175,6 +179,7 @@ type MsgIn
     | ReInit Int
     | SetBg String
     | SetTitle String
+    | AddOutMsg PID String
 
 
 type MsgOut msgIn
@@ -214,7 +219,7 @@ recv : MsgIn -> DevModel msgIn -> ( DevModel msgIn , List (MsgOut msgIn), Cmd Ms
 recv msgIn model =
     case msgIn of
         NewPID idx pid ->
-            ( { model | pids = Dict.insert idx pid model.pids }
+            ( { model | pids = Dict.insert idx ( Child pid [] ) model.pids }
             , Dict.get idx model.cases
                 |> Maybe.map
                     (\test ->
@@ -243,6 +248,38 @@ recv msgIn model =
             , Cmd.none
             )
 
+        AddOutMsg pid str ->
+            let
+                mbKey =
+                    Dict.foldl
+                        (\k child idx ->
+                            if child.pid == pid then
+                                Just k
+                            else
+                                idx
+                        )
+                        Nothing
+                        model.pids
+
+            in
+            case mbKey of
+                Just key ->
+                    ( { model | pids =
+                        Dict.update
+                            key
+                            (Maybe.map (\child -> { child | outMsgs = str :: child.outMsgs } ))
+                            model.pids
+                      }
+                    , [ ]
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model
+                    , [ ]
+                    , Cmd.none
+                    )
+
 -- VIEW
 
 view : (MsgIn -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
@@ -269,29 +306,45 @@ view toSelf model renderPID =
                             child =
                                 Dict.get idx model.pids
                         in
-                        Html.div
-                            []
-                            [ Html.h3 [] [ Html.text testCase.title ]
-                            , Html.p [] [ Html.text testCase.desc ]
-                            , Html.button
-                                [ Events.onClick (toSelf <| ReInit idx)
-                                ]
-                                [ Html.text "Reset test"
-                                ]
-                            , Html.div
-                                [ HA.style "margin" "2em 1em"
-                                , HA.style "background" model.bgColor
-                                ]
-                                [ Maybe.map renderPID child
-                                    |> Maybe.withDefault (Html.text "Not started")
-                                ]
-                            , Html.hr [] []
-                            ]
+                        Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                            |> Maybe.withDefault (Html.text "")
                     )
             )
 
         ]
 
+
+renderChild : DevModel m -> (MsgIn -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
+renderChild model toSelf renderPID idx testCase child =
+    Html.div
+        []
+        [ Html.h3 [] [ Html.text testCase.title ]
+        , Html.p [] [ Html.text testCase.desc ]
+        , child.pid
+            |> (\(PID _ p) -> "PID: " ++ (String.fromInt p))
+            |> Html.text
+            |> List.singleton
+            |> Html.p []
+        , Html.button
+            [ Events.onClick (toSelf <| ReInit idx)
+            ]
+            [ Html.text "Reset test"
+            ]
+        , Html.div
+            [ HA.style "margin" "2em 1em"
+            , HA.style "background" model.bgColor
+            ]
+            [ renderPID child.pid
+            ]
+        , Html.pre
+            [
+            ]
+            ( String.join "\n" child.outMsgs
+                |> Html.text
+                |> List.singleton
+            )
+        , Html.hr [] []
+        ]
 
 css : String
 css = """

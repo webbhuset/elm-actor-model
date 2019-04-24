@@ -2,7 +2,6 @@ module Webbhuset.Actor
     exposing
         ( Actor
         , PID
-        , pidToID
         , fromLayout
         , fromUI
         , fromService
@@ -17,11 +16,6 @@ import Browser
 
 
 type alias PID = System.PID
-
-
-pidToID : PID -> String
-pidToID =
-    System.pidToID
 
 
 type alias Actor model process msg =
@@ -48,7 +42,7 @@ fromLayout :
     (model -> process)
     -> (msgIn -> msgTo)
     -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (msgOut -> System.Msg component msgTo)
+    -> (PID -> msgOut -> System.Msg component msgTo)
     -> Component.Layout model msgIn msgOut (System.Msg component msgTo)
     -> Actor model process (System.Msg component msgTo)
 fromLayout toProcess toSelf fromGlobal toGlobal impl =
@@ -71,7 +65,7 @@ fromLayout toProcess toSelf fromGlobal toGlobal impl =
 
 wrapKill toGlobal impl model pid =
     impl model
-        |> List.map toGlobal
+        |> List.map (toGlobal pid)
         |> System.batch
 
 
@@ -79,7 +73,7 @@ fromUI :
     (model -> process)
     -> (msgIn -> msgTo)
     -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (msgOut -> System.Msg component msgTo)
+    -> (PID -> msgOut -> System.Msg component msgTo)
     -> Component.UI model msgIn msgOut
     -> Actor model process (System.Msg component msgTo)
 fromUI toProcess toSelf fromGlobal toGlobal impl =
@@ -88,23 +82,26 @@ fromUI toProcess toSelf fromGlobal toGlobal impl =
             |> wrapTriple toSelf toGlobal pid
             |> Tuple.mapFirst toProcess
     , recv = wrapRecv toProcess toSelf fromGlobal toGlobal impl.recv
-    , view = \s pid _ ->
-        Html.lazy impl.view s
-            |> Html.map
-                ( toSelf
-                    >> System.msgTo
-                    >> System.sendToPID pid
-                )
+    , view = \s pid _ -> Html.lazy4 wrapView impl.view s toSelf pid
     , kill = wrapKill toGlobal impl.kill
     , subs = wrapSub toSelf impl
     }
 
 
+wrapView : (model -> Html msgIn) -> model -> (msgIn -> msgTo) -> PID -> Html (System.Msg actor msgTo)
+wrapView view model toSelf pid =
+    view model
+        |> Html.map
+            ( toSelf
+                >> System.msgTo
+                >> System.sendToPID pid
+            )
+
 fromService :
     (model -> process)
     -> (msgIn -> msgTo)
     -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (msgOut -> System.Msg component msgTo)
+    -> (PID -> msgOut -> System.Msg component msgTo)
     -> Component.Service model msgIn msgOut
     -> Actor model process (System.Msg component msgTo)
 fromService toProcess toSelf fromGlobal toGlobal impl =
@@ -143,7 +140,7 @@ wrapSub toSelf impl model pid =
 
 wrapTriple :
     (msgIn -> msgTo)
-    -> (msgOut -> System.Msg component msgTo)
+    -> (PID -> msgOut -> System.Msg component msgTo)
     -> PID
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, System.Msg component msgTo )
@@ -162,7 +159,7 @@ wrapTriple toSelf toGlobal pid (model, msgsOut, cmd) =
                     |> System.Cmd
                     |> System.Ctrl
         msg =
-            List.map toGlobal msgsOut
+            List.map (toGlobal pid) msgsOut
                 |> (::) msgCmd
                 |> System.batch
     in
@@ -175,7 +172,7 @@ wrapRecv :
     ( model -> process )
     -> (msgIn -> msg)
     -> (System.Msg component msg -> Maybe msgIn)
-    -> (msgOut -> System.Msg component msg)
+    -> (PID -> msgOut -> System.Msg component msg)
     -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model -> System.Msg component msg -> PID -> ( process, System.Msg component msg ))
 wrapRecv toProcess toSelf fromGlobal toGlobal recv model msg pid =

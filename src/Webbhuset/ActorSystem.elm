@@ -1,6 +1,6 @@
 module Webbhuset.ActorSystem
     exposing
-        ( PID
+        ( PID --Internal
         , Model
         , Msg(..)
         , Control(..)
@@ -19,8 +19,6 @@ module Webbhuset.ActorSystem
         -- System
         , element
         , application
-        , pidToID
-        , noOne
         )
 
 import Random
@@ -30,10 +28,14 @@ import Browser
 import Browser.Navigation as Nav
 import Html exposing (Html)
 import Url exposing (Url)
+import Webbhuset.Internal.PID as PID exposing (PID(..))
+import Task
+
+
+type alias PID = PID.PID
 
 -- Ctrl
 
-import Task
 
 type Msg actor msgTo
     = None
@@ -155,18 +157,6 @@ toCmd msg =
             (Task.succeed msg)
 
 -- Sys
-
-type PID =
-    PID String Int
-
-
-noOne : String -> PID
-noOne name =
-    PID name 0
-
-pidToID : PID -> String
-pidToID (PID prefix id) =
-    prefix ++ (String.fromInt id)
 
 
 type alias Model actor process =
@@ -435,11 +425,11 @@ view impl model =
 
 
 renderPID : (process -> PID -> (PID -> Html msg) -> Html msg) -> Dict Int process -> PID -> Html msg
-renderPID viewFn dict (PID prefix pid) =
+renderPID viewFn dict ((PID prefix pid) as p) =
     Dict.get pid dict
         |> Maybe.map
             ( \process ->
-                viewFn process (PID prefix pid) (renderPID viewFn dict)
+                viewFn process p (renderPID viewFn dict)
             )
         |> Maybe.withDefault (Html.text "")
 

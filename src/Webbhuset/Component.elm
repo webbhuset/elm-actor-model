@@ -4,7 +4,6 @@ module Webbhuset.Component
         , Service
         , Layout
         , PID
-        , pidToID
         , andThen
         , mapFirst
         , mapSecond
@@ -13,12 +12,13 @@ module Webbhuset.Component
         )
 
 import Webbhuset.ActorSystem as System
+import Webbhuset.Internal.PID as PID
 import Html exposing (Html)
 import Html.Lazy as Html
 import Browser
 
 
-type alias PID = System.PID
+type alias PID = PID.PID -- Just for convenience
 
 
 type alias Service model msgIn msgOut =
@@ -45,11 +45,6 @@ type alias Layout model msgIn msgOut msg =
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
     }
-
-
-pidToID : PID -> String
-pidToID =
-    System.pidToID
 
 
 andThen : (model -> ( model, List msgOut, Cmd msgIn ))
