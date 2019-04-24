@@ -2,16 +2,27 @@ module Webbhuset.ActorSystem
     exposing
         ( PID
         , Model
-        , Msg
+        , Msg(..)
+        , Control(..)
         , Impl
         , AppliedContainer
+        -- CTRL
+        , none
+        , msgTo
+        , batch
+        , sendToPID
+        , sendToSingleton
+        , spawn
+        , spawnSingleton
+        , kill
+        , addView
+        -- System
         , element
         , application
         , pidToID
         , noOne
         )
 
-import Webbhuset.Ctrl as Ctrl exposing (Msg)
 import Random
 import List.Extra as List
 import Dict exposing (Dict)
@@ -20,6 +31,130 @@ import Browser.Navigation as Nav
 import Html exposing (Html)
 import Url exposing (Url)
 
+-- Ctrl
+
+import Task
+
+type Msg actor msgTo
+    = None
+    | MsgTo msgTo
+    | Ctrl (Control actor msgTo)
+    | Init (Msg actor msgTo) String
+
+
+type Control actor msgTo
+    = Batch ( List (Msg actor msgTo) )
+    | Cmd (Cmd (Msg actor msgTo))
+    | Kill PID
+    | SendToPID PID ( Msg actor msgTo )
+    | SendToSingleton actor ( Msg actor msgTo )
+    | Spawn actor ( PID -> Msg actor msgTo )
+    | SpawnSingleton actor
+    | AddView PID
+
+
+--
+-- Control
+--
+
+none : Msg actor msgTo
+none =
+    None
+
+
+msgTo : msgTo -> Msg actor msgTo
+msgTo d =
+    MsgTo d
+
+
+batch : List (Msg actor msgTo) -> Msg actor msgTo
+batch list =
+    Ctrl (Batch list)
+
+
+sendToPID : PID -> Msg actor msgTo -> Msg actor msgTo
+sendToPID pid msg =
+    if msg == None then
+        msg
+    else
+        Ctrl (SendToPID pid msg)
+
+
+sendToSingleton : actor -> Msg actor msgTo -> Msg actor msgTo
+sendToSingleton actor msg =
+    if msg == None then
+        msg
+    else
+        Ctrl (SendToSingleton actor msg)
+
+
+spawn : actor -> ( PID -> Msg actor msgTo ) -> Msg actor msgTo
+spawn actor replyMsg =
+    Ctrl (Spawn actor replyMsg)
+
+
+spawnSingleton : actor -> Msg actor msgTo
+spawnSingleton actor =
+    Ctrl (SpawnSingleton actor)
+
+
+kill : PID -> Msg actor msgTo
+kill pid =
+    Ctrl (Kill pid)
+
+
+addView : PID -> Msg actor msgTo
+addView pid =
+    Ctrl (AddView pid)
+
+--
+-- Composing Messages
+--
+
+noMsg : a -> ( a, Msg actor msgTo)
+noMsg a =
+    ( a, none )
+
+
+map : (a -> b) -> ( a, Msg actor msgTo ) -> ( b, Msg actor msgTo )
+map fn ( a, msg ) =
+    ( fn a, msg )
+
+
+andThen : (a -> ( b, Msg actor msgTo )) -> ( a, Msg actor msgTo ) -> ( b, Msg actor msgTo )
+andThen fn ( a, msg0 ) =
+    let
+        ( b, msg1 ) =
+            fn a
+    in
+        ( b, append msg0 msg1 )
+
+
+append : Msg actor msgTo -> Msg actor msgTo -> Msg actor msgTo
+append msg1 msg2 =
+    if msg1 == None then
+        msg2
+    else if msg2 == None then
+        msg1
+    else
+        Ctrl (Batch [ msg1, msg2 ])
+
+
+appendMsg : Msg actor msgTo -> (a, Msg actor msgTo) -> (a, Msg actor msgTo)
+appendMsg msg1 ( a, msg0 ) =
+    ( a, append msg0 msg1 )
+
+
+toCmd : Msg actor msgTo -> Cmd (Msg actor msgTo)
+toCmd msg =
+    if msg == None then
+        Cmd.none
+    else
+        Task.perform
+            identity
+            (Task.succeed msg)
+
+-- Sys
 
 type PID =
     PID String Int
@@ -50,10 +185,6 @@ type alias AppliedContainer process msg =
     , kill : PID -> msg
     , subs : PID -> Sub msg
     }
-
-type alias Msg actor data
-    = Ctrl.Msg PID actor data
-
 
 type alias Impl actor process data a =
     { a
@@ -106,7 +237,7 @@ initElement impl flags =
         , views = []
         }
         ( Random.generate
-            (Ctrl.Init impl.init)
+            (Init impl.init)
             prefixGenerator
         )
 
@@ -125,7 +256,7 @@ initApplication impl flags url key =
         , views = []
         }
         ( Random.generate
-            (Ctrl.Init (impl.init url key))
+            (Init (impl.init url key))
             prefixGenerator
         )
 
@@ -151,63 +282,63 @@ prefixGenerator =
 update : Impl actor process data a -> (Msg actor data) -> Model actor process -> ( Model actor process, Cmd (Msg actor data) )
 update impl msg model =
     case msg of
-        Ctrl.None ->
+        None ->
             (model, Cmd.none)
 
-        Ctrl.MsgTo _ ->
+        MsgTo _ ->
             (model, Cmd.none)
 
-        Ctrl.Init initMsg prefix ->
+        Init initMsg prefix ->
             { model | prefix = prefix }
                 |> update impl initMsg
 
-        Ctrl.Ctrl ctrlMsg ->
+        Ctrl ctrlMsg ->
             case ctrlMsg of
-                Ctrl.Batch listOfMsgs ->
+                Batch listOfMsgs ->
                     listOfMsgs
                         |> List.foldl
                             (\batchMsg previous ->
-                                andThen (update impl batchMsg) previous
+                                cmdAndThen (update impl batchMsg) previous
                             )
                             ( model, Cmd.none )
 
-                Ctrl.Cmd cmd ->
+                Cmd cmd ->
                     (model, cmd)
 
-                Ctrl.SendToPID pid message ->
+                SendToPID pid message ->
                     case getProcess pid model of
                         Just process ->
                             let
                                 (m2, newMsg) =
                                     .recv (impl.apply process) message pid
-                                        |> Ctrl.map (updateInstanceIn model pid)
+                                        |> map (updateInstanceIn model pid)
                             in
                             update impl newMsg m2
 
                         Nothing ->
                             ( model, Cmd.none )
 
-                Ctrl.SendToSingleton actor message ->
+                SendToSingleton actor message ->
                     case findSingletonPID actor model of
                         Just pid ->
-                            update impl (Ctrl.sendToPID pid message) model
+                            update impl (sendToPID pid message) model
 
                         Nothing ->
-                            update impl (Ctrl.spawnSingleton actor) model
-                               |> andThen (update impl msg)
+                            update impl (spawnSingleton actor) model
+                               |> cmdAndThen (update impl msg)
 
-                Ctrl.Spawn actor replyMsg ->
+                Spawn actor replyMsg ->
                     let
                         ( m2, pid ) =
                             newPID model
 
                         ( m3, newMsg ) =
-                            spawn impl actor pid m2
+                            spawn_ impl actor pid m2
                     in
                     update impl newMsg m3
-                        |> andThen (update impl (replyMsg pid))
+                        |> cmdAndThen (update impl (replyMsg pid))
 
-                Ctrl.Kill ((PID _ pid) as p) ->
+                Kill ((PID _ pid) as p) ->
                     case Dict.get pid model.instances of
                         Just process ->
                             let
@@ -220,27 +351,27 @@ update impl msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                Ctrl.SpawnSingleton actor ->
+                SpawnSingleton actor ->
                     let
                         ( m2, pid ) =
                             newPID model
 
                         ( m3, newMsg ) =
                             appendSingleton actor pid m2
-                                |> spawn impl actor pid
+                                |> spawn_ impl actor pid
                     in
                     update impl newMsg m3
 
-                Ctrl.AddView pid ->
+                AddView pid ->
                     ( { model | views = pid :: model.views }
                     , Cmd.none
                     )
 
 
-spawn : Impl actor process data a -> actor -> PID -> Model actor process -> ( Model actor process, Msg actor data )
-spawn impl actor pid model =
+spawn_ : Impl actor process data a -> actor -> PID -> Model actor process -> ( Model actor process, Msg actor data )
+spawn_ impl actor pid model =
     impl.spawn actor pid
-        |> Ctrl.map (updateInstanceIn model pid)
+        |> map (updateInstanceIn model pid)
 
 
 newPID : Model actor process -> ( Model actor process, PID )
@@ -313,8 +444,8 @@ renderPID viewFn dict (PID prefix pid) =
         |> Maybe.withDefault (Html.text "")
 
 
-andThen : (m -> ( m, Cmd msg )) -> ( m, Cmd msg ) -> ( m , Cmd msg )
-andThen fn ( m0, cmd0 ) =
+cmdAndThen : (m -> ( m, Cmd msg )) -> ( m, Cmd msg ) -> ( m , Cmd msg )
+cmdAndThen fn ( m0, cmd0 ) =
     let
         (m1, cmd1) =
             fn m0

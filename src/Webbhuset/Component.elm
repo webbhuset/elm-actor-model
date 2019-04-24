@@ -13,7 +13,6 @@ module Webbhuset.Component
         )
 
 import Webbhuset.ActorSystem as System
-import Webbhuset.Ctrl as Ctrl
 import Html exposing (Html)
 import Html.Lazy as Html
 import Browser

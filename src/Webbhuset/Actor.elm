@@ -10,7 +10,6 @@ module Webbhuset.Actor
         )
 
 import Webbhuset.ActorSystem as System
-import Webbhuset.Ctrl as Ctrl
 import Webbhuset.Component as Component
 import Html exposing (Html)
 import Html.Lazy as Html
@@ -61,8 +60,8 @@ fromLayout toProcess toSelf fromGlobal toGlobal impl =
     , view = \s pid ->
         impl.view
             ( toSelf
-                >> Ctrl.msgTo
-                >> Ctrl.sendToPID pid
+                >> System.msgTo
+                >> System.sendToPID pid
             )
             s
     , kill = wrapKill toGlobal impl.kill
@@ -73,7 +72,7 @@ fromLayout toProcess toSelf fromGlobal toGlobal impl =
 wrapKill toGlobal impl model pid =
     impl model
         |> List.map toGlobal
-        |> Ctrl.batch
+        |> System.batch
 
 
 fromUI :
@@ -93,8 +92,8 @@ fromUI toProcess toSelf fromGlobal toGlobal impl =
         Html.lazy impl.view s
             |> Html.map
                 ( toSelf
-                    >> Ctrl.msgTo
-                    >> Ctrl.sendToPID pid
+                    >> System.msgTo
+                    >> System.sendToPID pid
                 )
     , kill = wrapKill toGlobal impl.kill
     , subs = wrapSub toSelf impl
@@ -136,8 +135,8 @@ wrapSub toSelf impl model pid =
     else
         Sub.map
             ( toSelf
-                >> Ctrl.msgTo
-                >> Ctrl.sendToPID pid
+                >> System.msgTo
+                >> System.sendToPID pid
             )
             sub
 
@@ -152,19 +151,20 @@ wrapTriple toSelf toGlobal pid (model, msgsOut, cmd) =
     let
         msgCmd =
             if cmd == Cmd.none then
-                Ctrl.none
+                System.none
             else
                 Cmd.map
                     ( toSelf
-                        >> Ctrl.msgTo
-                        >> Ctrl.sendToPID pid
+                        >> System.msgTo
+                        >> System.sendToPID pid
                     )
                     cmd
-                    |> Ctrl.cmd
+                    |> System.Cmd
+                    |> System.Ctrl
         msg =
             List.map toGlobal msgsOut
                 |> (::) msgCmd
-                |> Ctrl.batch
+                |> System.batch
     in
     ( model
     , msg
@@ -186,7 +186,7 @@ wrapRecv toProcess toSelf fromGlobal toGlobal recv model msg pid =
                 |> Tuple.mapFirst toProcess
 
         Nothing ->
-            ( toProcess model, Ctrl.none )
+            ( toProcess model, System.none )
 
 
 

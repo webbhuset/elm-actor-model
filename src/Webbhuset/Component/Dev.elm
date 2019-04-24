@@ -3,9 +3,9 @@ module Webbhuset.Component.Dev exposing (..)
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as Events
-import Webbhuset.Component as Component exposing (Container, PID)
+import Webbhuset.Component as Component
+import Webbhuset.Actor as Actor exposing (Actor, PID)
 import Webbhuset.ActorSystem as System
-import Webbhuset.Ctrl as Ctrl
 import Dict exposing (Dict)
 
 type alias Model m msgIn = System.Model Component (Process m msgIn)
@@ -19,7 +19,7 @@ testUI : Component.UI m msgIn msgOut -> String -> List (TestCase msgIn) -> TestP
 testUI ui title cases =
     let
         tested =
-            Component.wrapUI
+            Actor.fromUI
                 P_Component
                 ComponentMsg
                 testedMapIn
@@ -35,13 +35,13 @@ testUI ui title cases =
 
 initApp : String -> Msg msgIn
 initApp title =
-    Ctrl.batch
-        [ Ctrl.spawn DevComponent
+    System.batch
+        [ System.spawn DevComponent
             ( \pid ->
-                Ctrl.batch
-                    [ Ctrl.addView pid
-                    , Ctrl.sendToPID pid
-                        ( Ctrl.msgTo <| DevMsg <| SetTitle title )
+                System.batch
+                    [ System.addView pid
+                    , System.sendToPID pid
+                        ( System.msgTo <| DevMsg <| SetTitle title )
                     ]
             )
         ]
@@ -50,7 +50,7 @@ initApp title =
 testedMapIn : Msg msgIn -> Maybe msgIn
 testedMapIn globalMsg =
     case globalMsg of
-        Ctrl.MsgTo (ComponentMsg msg) ->
+        System.MsgTo (ComponentMsg msg) ->
             Just msg
 
         _ ->
@@ -62,7 +62,7 @@ testedMapOut componentMsg =
     let
         _ = Debug.log "MsgOut" componentMsg
     in
-    Ctrl.none
+    System.none
 
 
 -- SYSTEM
@@ -85,7 +85,7 @@ type MsgTo msgIn
     | ComponentMsg msgIn
 
 
-spawn : List (TestCase msgIn) -> Container model (Process model msgIn) (Msg msgIn) -> Component -> PID -> ( Process model msgIn, Msg msgIn )
+spawn : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Component -> PID -> ( Process model msgIn, Msg msgIn )
 spawn tests tested name =
     case name of
         DevComponent ->
@@ -95,22 +95,22 @@ spawn tests tested name =
             tested.init
 
 
-applyModel : List (TestCase msgIn) -> Container model (Process model msgIn) (Msg msgIn) -> Process model msgIn-> System.AppliedContainer (Process model msgIn) (Msg msgIn)
+applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Process model msgIn-> System.AppliedContainer (Process model msgIn) (Msg msgIn)
 applyModel tests tested process =
     case process of
         P_Dev model ->
-            Component.applyModel (container tests) model
+            Actor.applyModel (container tests) model
 
         P_Component model ->
-            Component.applyModel tested model
+            Actor.applyModel tested model
 
 
 -- CONTAINER
 
 
-container : List (TestCase msgIn) -> Container (DevModel msgIn) (Process model msgIn) (Msg msgIn)
+container : List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
 container tests =
-    Component.wrapLayout
+    Actor.fromLayout
         P_Dev
         DevMsg
         mapIn
@@ -121,7 +121,7 @@ container tests =
 mapIn : Msg msgIn -> Maybe MsgIn
 mapIn globalMsg =
     case globalMsg of
-        Ctrl.MsgTo (DevMsg msg) ->
+        System.MsgTo (DevMsg msg) ->
             Just msg
 
         _ ->
@@ -132,11 +132,11 @@ mapOut : MsgOut msgIn -> (Msg msgIn)
 mapOut componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
-            Ctrl.spawn TestedComponent
-                ( \pid -> Ctrl.sendToPID replyPID (Ctrl.msgTo (DevMsg <| reply pid)))
+            System.spawn TestedComponent
+                ( \pid -> System.sendToPID replyPID (System.msgTo (DevMsg <| reply pid)))
 
         SendTo pid msg ->
-            Ctrl.sendToPID pid (Ctrl.msgTo (ComponentMsg msg))
+            System.sendToPID pid (System.msgTo (ComponentMsg msg))
 
 -- COMPONENT
 
