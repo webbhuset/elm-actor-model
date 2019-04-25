@@ -136,20 +136,20 @@ type alias Impl actor process msgTo a =
         , apply : process -> AppliedActor process (Msg actor msgTo)
     }
 
-type alias ElementImpl actor process msgTo =
+type alias ElementImpl flags actor process msgTo =
     Impl actor process msgTo
-        { init : Msg actor msgTo
+        { init : flags -> Msg actor msgTo
         }
 
-type alias ApplicationImpl actor process msgTo =
+type alias ApplicationImpl flags actor process msgTo =
     Impl actor process msgTo
-        { init : Url -> Nav.Key -> Msg actor msgTo
+        { init : flags -> Url -> Nav.Key -> Msg actor msgTo
         , onUrlRequest : Browser.UrlRequest -> (Msg actor msgTo)
         , onUrlChange : Url -> (Msg actor msgTo)
         }
 
 
-element : ElementImpl actor process msgTo -> Program () (Model actor process) (Msg actor msgTo)
+element : ElementImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
 element impl =
     Browser.element
         { init = initElement impl
@@ -159,7 +159,7 @@ element impl =
         }
 
 
-application : ApplicationImpl actor process msgTo -> Program () (Model actor process) (Msg actor msgTo)
+application : ApplicationImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
 application impl =
     Browser.application
         { init = initApplication impl
@@ -171,7 +171,7 @@ application impl =
         }
 
 
-initElement : ElementImpl actor process msgTo -> flags -> ( Model actor process, Cmd (Msg actor msgTo) )
+initElement : ElementImpl flags actor process msgTo -> flags -> ( Model actor process, Cmd (Msg actor msgTo) )
 initElement impl flags =
     Tuple.pair
         { instances = Dict.empty
@@ -181,12 +181,12 @@ initElement impl flags =
         , views = []
         }
         ( Random.generate
-            (Init impl.init)
+            (Init (impl.init flags))
             prefixGenerator
         )
 
 initApplication :
-    ApplicationImpl actor process msgTo
+    ApplicationImpl flags actor process msgTo
     -> flags
     -> Url
     -> Nav.Key
@@ -200,7 +200,7 @@ initApplication impl flags url key =
         , views = []
         }
         ( Random.generate
-            (Init (impl.init url key))
+            (Init (impl.init flags url key))
             prefixGenerator
         )
 
