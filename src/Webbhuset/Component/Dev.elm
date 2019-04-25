@@ -34,8 +34,8 @@ testUI ui title cases =
         }
 
 
-initApp : String -> Msg msgIn
-initApp title =
+initApp : String -> () -> Msg msgIn
+initApp title _ =
     System.batch
         [ System.spawnSingleton DevActor
         , System.sendToSingleton DevActor
