@@ -23,7 +23,7 @@ type alias PID = PID.PID -- Just for convenience
 
 type alias Service model msgIn msgOut =
     { init : PID -> (model, List msgOut, Cmd msgIn)
-    , recv : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
     }
@@ -31,7 +31,7 @@ type alias Service model msgIn msgOut =
 
 type alias UI model msgIn msgOut =
     { init : PID -> (model, List msgOut, Cmd msgIn)
-    , recv : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
     , view : model -> Html msgIn
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
@@ -40,7 +40,7 @@ type alias UI model msgIn msgOut =
 
 type alias Layout model msgIn msgOut msg =
     { init : PID -> (model, List msgOut, Cmd msgIn)
-    , recv : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
     , view : (msgIn -> msg) -> model -> (PID -> Html msg) -> Html msg
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn

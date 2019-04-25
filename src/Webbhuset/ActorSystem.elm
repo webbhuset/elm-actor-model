@@ -5,7 +5,7 @@ module Webbhuset.ActorSystem
         , Msg(..)
         , Control(..)
         , Impl
-        , AppliedContainer
+        , AppliedActor
         -- CTRL
         , none
         , msgTo
@@ -109,52 +109,6 @@ addView : PID -> Msg actor msgTo
 addView pid =
     Ctrl (AddView pid)
 
---
--- Composing Messages
---
-
-noMsg : a -> ( a, Msg actor msgTo)
-noMsg a =
-    ( a, none )
-
-
-map : (a -> b) -> ( a, Msg actor msgTo ) -> ( b, Msg actor msgTo )
-map fn ( a, msg ) =
-    ( fn a, msg )
-
-
-andThen : (a -> ( b, Msg actor msgTo )) -> ( a, Msg actor msgTo ) -> ( b, Msg actor msgTo )
-andThen fn ( a, msg0 ) =
-    let
-        ( b, msg1 ) =
-            fn a
-    in
-        ( b, append msg0 msg1 )
-
-
-append : Msg actor msgTo -> Msg actor msgTo -> Msg actor msgTo
-append msg1 msg2 =
-    if msg1 == None then
-        msg2
-    else if msg2 == None then
-        msg1
-    else
-        Ctrl (Batch [ msg1, msg2 ])
-
-
-appendMsg : Msg actor msgTo -> (a, Msg actor msgTo) -> (a, Msg actor msgTo)
-appendMsg msg1 ( a, msg0 ) =
-    ( a, append msg0 msg1 )
-
-
-toCmd : Msg actor msgTo -> Cmd (Msg actor msgTo)
-toCmd msg =
-    if msg == None then
-        Cmd.none
-    else
-        Task.perform
-            identity
-            (Task.succeed msg)
 
 -- Sys
 
@@ -168,34 +122,34 @@ type alias Model actor process =
     }
 
 
-type alias AppliedContainer process msg =
+type alias AppliedActor process msg =
     { init : PID -> (process, msg)
-    , recv : msg -> PID -> (process, msg)
+    , update : msg -> PID -> (process, msg)
     , view : PID -> (PID -> Html msg) -> Html msg
     , kill : PID -> msg
     , subs : PID -> Sub msg
     }
 
-type alias Impl actor process data a =
+type alias Impl actor process msgTo a =
     { a
-        | spawn : actor -> PID -> (process, Msg actor data)
-        , apply : process -> AppliedContainer process (Msg actor data)
+        | spawn : actor -> PID -> (process, Msg actor msgTo)
+        , apply : process -> AppliedActor process (Msg actor msgTo)
     }
 
-type alias ElementImpl actor process data =
-    Impl actor process data
-        { init : Msg actor data
+type alias ElementImpl actor process msgTo =
+    Impl actor process msgTo
+        { init : Msg actor msgTo
         }
 
-type alias ApplicationImpl actor process data =
-    Impl actor process data
-        { init : Url -> Nav.Key -> Msg actor data
-        , onUrlRequest : Browser.UrlRequest -> (Msg actor data)
-        , onUrlChange : Url -> (Msg actor data)
+type alias ApplicationImpl actor process msgTo =
+    Impl actor process msgTo
+        { init : Url -> Nav.Key -> Msg actor msgTo
+        , onUrlRequest : Browser.UrlRequest -> (Msg actor msgTo)
+        , onUrlChange : Url -> (Msg actor msgTo)
         }
 
 
-element : ElementImpl actor process data -> Program () (Model actor process) (Msg actor data)
+element : ElementImpl actor process msgTo -> Program () (Model actor process) (Msg actor msgTo)
 element impl =
     Browser.element
         { init = initElement impl
@@ -205,7 +159,7 @@ element impl =
         }
 
 
-application : ApplicationImpl actor process data -> Program () (Model actor process) (Msg actor data)
+application : ApplicationImpl actor process msgTo -> Program () (Model actor process) (Msg actor msgTo)
 application impl =
     Browser.application
         { init = initApplication impl
@@ -217,7 +171,7 @@ application impl =
         }
 
 
-initElement : ElementImpl actor process data -> flags -> ( Model actor process, Cmd (Msg actor data) )
+initElement : ElementImpl actor process msgTo -> flags -> ( Model actor process, Cmd (Msg actor msgTo) )
 initElement impl flags =
     Tuple.pair
         { instances = Dict.empty
@@ -232,11 +186,11 @@ initElement impl flags =
         )
 
 initApplication :
-    ApplicationImpl actor process data
+    ApplicationImpl actor process msgTo
     -> flags
     -> Url
     -> Nav.Key
-    -> ( Model actor process, Cmd (Msg actor data) )
+    -> ( Model actor process, Cmd (Msg actor msgTo) )
 initApplication impl flags url key =
     Tuple.pair
         { instances = Dict.empty
@@ -269,7 +223,7 @@ prefixGenerator =
             )
 
 
-update : Impl actor process data a -> (Msg actor data) -> Model actor process -> ( Model actor process, Cmd (Msg actor data) )
+update : Impl actor process msgTo a -> (Msg actor msgTo) -> Model actor process -> ( Model actor process, Cmd (Msg actor msgTo) )
 update impl msg model =
     case msg of
         None ->
@@ -300,8 +254,8 @@ update impl msg model =
                         Just process ->
                             let
                                 (m2, newMsg) =
-                                    .recv (impl.apply process) message pid
-                                        |> map (updateInstanceIn model pid)
+                                    .update (impl.apply process) message pid
+                                        |> Tuple.mapFirst (updateInstanceIn model pid)
                             in
                             update impl newMsg m2
 
@@ -358,10 +312,10 @@ update impl msg model =
                     )
 
 
-spawn_ : Impl actor process data a -> actor -> PID -> Model actor process -> ( Model actor process, Msg actor data )
+spawn_ : Impl actor process msgTo a -> actor -> PID -> Model actor process -> ( Model actor process, Msg actor msgTo )
 spawn_ impl actor pid model =
     impl.spawn actor pid
-        |> map (updateInstanceIn model pid)
+        |> Tuple.mapFirst (updateInstanceIn model pid)
 
 
 newPID : Model actor process -> ( Model actor process, PID )
@@ -399,7 +353,7 @@ findSingletonPID actor model =
         |> Maybe.map Tuple.second
 
 
-subscriptions : Impl actor process data a -> Model actor process -> Sub (Msg actor data)
+subscriptions : Impl actor process msgTo a -> Model actor process -> Sub (Msg actor msgTo)
 subscriptions impl model =
     model.instances
         |> Dict.foldl
@@ -417,7 +371,7 @@ subscriptions impl model =
         |> Sub.batch
 
 
-view : Impl actor process data a -> Model actor process -> Html (Msg actor data)
+view : Impl actor process msgTo a -> Model actor process -> Html (Msg actor msgTo)
 view impl model =
     model.views ++ (List.map Tuple.second model.singleton)
         |> List.map (renderPID (\p -> .view (impl.apply p)) model.instances)

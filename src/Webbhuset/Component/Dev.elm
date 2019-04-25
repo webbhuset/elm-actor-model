@@ -9,7 +9,7 @@ import Webbhuset.ActorSystem as System
 import Webbhuset.Internal.PID exposing (PID(..))
 import Dict exposing (Dict)
 
-type alias Model m msgIn = System.Model Component (Process m msgIn)
+type alias Model m msgIn = System.Model ActorName (Process m msgIn)
 
 
 type alias TestProgram m msgIn =
@@ -19,7 +19,7 @@ type alias TestProgram m msgIn =
 testUI : Component.UI m msgIn msgOut -> String -> List (TestCase msgIn) -> TestProgram m msgIn
 testUI ui title cases =
     let
-        tested =
+        testedActor =
             Actor.fromUI
                 P_Component
                 ComponentMsg
@@ -29,16 +29,16 @@ testUI ui title cases =
     in
     System.element
         { init = initApp title
-        , spawn = spawn cases tested
-        , apply = applyModel cases tested
+        , spawn = spawn cases testedActor
+        , apply = applyModel cases testedActor
         }
 
 
 initApp : String -> Msg msgIn
 initApp title =
     System.batch
-        [ System.spawnSingleton DevComponent
-        , System.sendToSingleton DevComponent
+        [ System.spawnSingleton DevActor
+        , System.sendToSingleton DevActor
             ( System.msgTo <| DevMsg <| SetTitle title )
         ]
 
@@ -60,14 +60,14 @@ testedMapOut pid componentMsg =
         |> AddOutMsg pid
         |> DevMsg
         |> System.msgTo
-        |> System.sendToSingleton DevComponent
+        |> System.sendToSingleton DevActor
 
 
 -- SYSTEM
 
-type Component
-    = DevComponent
-    | TestedComponent
+type ActorName
+    = DevActor
+    | TestedActor
 
 
 type Process model msgIn
@@ -75,7 +75,7 @@ type Process model msgIn
     | P_Component model
 
 
-type alias Msg msgIn = System.Msg Component (MsgTo msgIn)
+type alias Msg msgIn = System.Msg ActorName (MsgTo msgIn)
 
 
 type MsgTo msgIn
@@ -83,24 +83,24 @@ type MsgTo msgIn
     | ComponentMsg msgIn
 
 
-spawn : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Component -> PID -> ( Process model msgIn, Msg msgIn )
+spawn : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> ActorName -> PID -> ( Process model msgIn, Msg msgIn )
 spawn tests tested name =
     case name of
-        DevComponent ->
+        DevActor ->
             .init (actor tests)
 
-        TestedComponent ->
+        TestedActor ->
             tested.init
 
 
-applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Process model msgIn-> System.AppliedContainer (Process model msgIn) (Msg msgIn)
-applyModel tests tested process =
+applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Process model msgIn-> System.AppliedActor (Process model msgIn) (Msg msgIn)
+applyModel tests testedActor process =
     case process of
         P_Dev model ->
             Actor.applyModel (actor tests) model
 
         P_Component model ->
-            Actor.applyModel tested model
+            Actor.applyModel testedActor model
 
 
 -- CONTAINER
@@ -130,7 +130,7 @@ mapOut : PID -> MsgOut msgIn -> (Msg msgIn)
 mapOut p componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
-            System.spawn TestedComponent
+            System.spawn TestedActor
                 ( \pid -> System.sendToPID replyPID (System.msgTo (DevMsg <| reply pid)))
 
         SendTo pid msg ->
@@ -141,7 +141,7 @@ mapOut p componentMsg =
 component : List (TestCase msgIn) -> Component.Layout (DevModel msgIn) MsgIn (MsgOut msgIn) msg
 component tests =
     { init = init tests
-    , recv = recv
+    , update = update
     , view = view
     , kill = kill
     , subs = always Sub.none
@@ -215,8 +215,8 @@ kill model =
     []
 
 
-recv : MsgIn -> DevModel msgIn -> ( DevModel msgIn , List (MsgOut msgIn), Cmd MsgIn )
-recv msgIn model =
+update : MsgIn -> DevModel msgIn -> ( DevModel msgIn , List (MsgOut msgIn), Cmd MsgIn )
+update msgIn model =
     case msgIn of
         NewPID idx pid ->
             ( { model | pids = Dict.insert idx ( Child pid [] ) model.pids }

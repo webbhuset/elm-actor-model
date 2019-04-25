@@ -20,20 +20,20 @@ type alias PID = System.PID
 
 type alias Actor model process msg =
     { init : PID -> (process, msg)
-    , recv : model -> msg -> PID -> (process, msg)
+    , update : model -> msg -> PID -> (process, msg)
     , view : model -> PID -> (PID -> Html msg) -> Html msg
     , kill : model -> PID -> msg
     , subs : model -> PID -> Sub msg
     }
 
 
-applyModel : Actor model process msg -> model -> System.AppliedContainer process msg
-applyModel container model =
-    { init = container.init
-    , recv = container.recv model
-    , view = container.view model
-    , kill = container.kill model
-    , subs = container.subs model
+applyModel : Actor model process msg -> model -> System.AppliedActor process msg
+applyModel actor model =
+    { init = actor.init
+    , update = actor.update model
+    , view = actor.view model
+    , kill = actor.kill model
+    , subs = actor.subs model
     }
 
 
@@ -50,7 +50,7 @@ fromLayout toProcess toSelf fromGlobal toGlobal impl =
         impl.init pid
             |> wrapTriple toSelf toGlobal pid
             |> Tuple.mapFirst toProcess
-    , recv = wrapRecv toProcess toSelf fromGlobal toGlobal impl.recv
+    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
     , view = \s pid ->
         impl.view
             ( toSelf
@@ -81,7 +81,7 @@ fromUI toProcess toSelf fromGlobal toGlobal impl =
         impl.init pid
             |> wrapTriple toSelf toGlobal pid
             |> Tuple.mapFirst toProcess
-    , recv = wrapRecv toProcess toSelf fromGlobal toGlobal impl.recv
+    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
     , view = \s pid _ -> Html.lazy4 wrapView impl.view s toSelf pid
     , kill = wrapKill toGlobal impl.kill
     , subs = wrapSub toSelf impl
@@ -109,7 +109,7 @@ fromService toProcess toSelf fromGlobal toGlobal impl =
         impl.init pid
             |> wrapTriple toSelf toGlobal pid
             |> Tuple.mapFirst toProcess
-    , recv = wrapRecv toProcess toSelf fromGlobal toGlobal impl.recv
+    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
     , view = \_ _ _ -> Html.text ""
     , kill = wrapKill toGlobal impl.kill
     , subs = wrapSub toSelf impl
@@ -175,10 +175,10 @@ wrapRecv :
     -> (PID -> msgOut -> System.Msg component msg)
     -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model -> System.Msg component msg -> PID -> ( process, System.Msg component msg ))
-wrapRecv toProcess toSelf fromGlobal toGlobal recv model msg pid =
+wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
     case fromGlobal msg of
         Just msgIn ->
-            recv msgIn model
+            update msgIn model
                 |> wrapTriple toSelf toGlobal pid
                 |> Tuple.mapFirst toProcess
 
