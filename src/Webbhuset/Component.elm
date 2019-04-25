@@ -15,7 +15,6 @@ import Webbhuset.ActorSystem as System
 import Webbhuset.Internal.PID as PID
 import Html exposing (Html)
 import Html.Lazy as Html
-import Browser
 
 
 type alias PID = PID.PID -- Just for convenience
