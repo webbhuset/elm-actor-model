@@ -7,6 +7,7 @@ import Webbhuset.Component as Component
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Internal.PID exposing (PID(..))
+import Webbhuset.PID as PID
 import Dict exposing (Dict)
 
 type alias Model m msgIn = System.Model ActorName (Process m msgIn)
@@ -157,7 +158,6 @@ type alias TestCase msgIn =
 
 type alias Child =
     { pid : PID
-    , outMsgs : List String
     }
 
 
@@ -165,6 +165,7 @@ type alias DevModel msgIn =
     { pid : PID
     , cases : Dict Int (TestCase msgIn)
     , pids : Dict Int Child
+    , messages : Dict String (List String)
     , bgColor : String
     , title : String
     }
@@ -198,6 +199,7 @@ init cases pid =
             List.indexedMap (\idx test -> (idx, test)) cases
                 |> Dict.fromList
         , pids = Dict.empty
+        , messages = Dict.empty
         , bgColor = "#fff"
         , title = ""
         }
@@ -219,7 +221,7 @@ update : MsgIn -> DevModel msgIn -> ( DevModel msgIn , List (MsgOut msgIn), Cmd 
 update msgIn model =
     case msgIn of
         NewPID idx pid ->
-            ( { model | pids = Dict.insert idx ( Child pid [] ) model.pids }
+            ( { model | pids = Dict.insert idx ( Child pid ) model.pids }
             , Dict.get idx model.cases
                 |> Maybe.map
                     (\test ->
@@ -249,36 +251,25 @@ update msgIn model =
             )
 
         AddOutMsg pid str ->
-            let
-                mbKey =
-                    Dict.foldl
-                        (\k child idx ->
-                            if child.pid == pid then
-                                Just k
-                            else
-                                idx
+            ( { model
+                | messages =
+                    Dict.update
+                        (PID.toString pid)
+                        (\mbMsg ->
+                            case mbMsg of
+                                Just messages ->
+                                    str :: messages
+                                        |> Just
+
+                                Nothing ->
+                                    [ str ]
+                                        |> Just
                         )
-                        Nothing
-                        model.pids
-
-            in
-            case mbKey of
-                Just key ->
-                    ( { model | pids =
-                        Dict.update
-                            key
-                            (Maybe.map (\child -> { child | outMsgs = str :: child.outMsgs } ))
-                            model.pids
-                      }
-                    , [ ]
-                    , Cmd.none
-                    )
-
-                Nothing ->
-                    ( model
-                    , [ ]
-                    , Cmd.none
-                    )
+                        model.messages
+              }
+            , [ ]
+            , Cmd.none
+            )
 
 -- VIEW
 
@@ -339,7 +330,10 @@ renderChild model toSelf renderPID idx testCase child =
         , Html.pre
             [
             ]
-            ( String.join "\n" child.outMsgs
+            ( model.messages
+                |> Dict.get (PID.toString child.pid)
+                |> Maybe.withDefault []
+                |> String.join "\n"
                 |> Html.text
                 |> List.singleton
             )
