@@ -330,13 +330,13 @@ renderChild model toSelf renderPID idx testCase child =
         , Html.pre
             [
             ]
-            ( model.messages
+            [ Html.text "MsgOut:\n"
+            , model.messages
                 |> Dict.get (PID.toString child.pid)
                 |> Maybe.withDefault []
                 |> String.join "\n"
                 |> Html.text
-                |> List.singleton
-            )
+            ]
         , Html.hr [] []
         ]
 
