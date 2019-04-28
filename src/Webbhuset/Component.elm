@@ -9,6 +9,8 @@ module Webbhuset.Component
         , mapSecond
         , addOutMsg
         , addCmd
+        , runQueue
+        , addToQueue
         )
 
 import Webbhuset.ActorSystem as System
@@ -81,3 +83,19 @@ addOutMsg msg ( x, list, y ) =
 addCmd : Cmd msg -> ( x, y, Cmd msg ) -> ( x, y, Cmd msg )
 addCmd cmd1 ( x, y, cmd0 ) =
     ( x, y, Cmd.batch [ cmd0, cmd1 ] )
+
+
+runQueue : List msgIn
+    -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ) )
+    -> ( model, List msgOut, Cmd msgIn )
+    -> ( model, List msgOut, Cmd msgIn )
+runQueue queuedMsgs update initial =
+    List.foldr
+        (\qMsg triplet -> andThen (update qMsg) triplet)
+        initial
+        queuedMsgs
+
+
+addToQueue : msgIn -> List msgIn -> List msgIn
+addToQueue msg queue =
+    msg :: queue
