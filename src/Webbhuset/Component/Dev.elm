@@ -333,6 +333,7 @@ renderChild model toSelf renderPID idx testCase child =
             [ Html.text "MsgOut:\n"
             , model.messages
                 |> Dict.get (PID.toString child.pid)
+                |> Maybe.map List.reverse
                 |> Maybe.withDefault []
                 |> String.join "\n"
                 |> Html.text
