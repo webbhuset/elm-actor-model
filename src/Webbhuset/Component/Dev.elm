@@ -58,7 +58,8 @@ testedMapOut : PID -> msgOut -> Msg msgIn
 testedMapOut pid componentMsg =
     componentMsg
         |> Debug.toString
-        |> AddOutMsg pid
+        |> OutMessage
+        |> AddMsg pid
         |> DevMsg
         |> System.msgTo
         |> System.sendToSingleton DevActor
@@ -135,7 +136,11 @@ mapOut p componentMsg =
                 ( \pid -> System.sendToPID replyPID (System.msgTo (DevMsg <| reply pid)))
 
         SendTo pid msg ->
-            System.sendToPID pid (System.msgTo (ComponentMsg msg))
+            System.batch
+                [ System.sendToSingleton DevActor
+                    (System.msgTo (DevMsg <| AddMsg pid (InMessage <| Debug.toString msg)))
+                , System.sendToPID pid (System.msgTo (ComponentMsg msg))
+                ]
 
 -- COMPONENT
 
@@ -161,11 +166,15 @@ type alias Child =
     }
 
 
+type Message
+    = InMessage String
+    | OutMessage String
+
 type alias DevModel msgIn =
     { pid : PID
     , cases : Dict Int (TestCase msgIn)
     , pids : Dict Int Child
-    , messages : Dict String (List String)
+    , messages : Dict String (List Message)
     , bgColor : String
     , title : String
     }
@@ -180,7 +189,7 @@ type MsgIn
     | ReInit Int
     | SetBg String
     | SetTitle String
-    | AddOutMsg PID String
+    | AddMsg PID Message
 
 
 type MsgOut msgIn
@@ -250,7 +259,7 @@ update msgIn model =
             , Cmd.none
             )
 
-        AddOutMsg pid str ->
+        AddMsg pid message ->
             ( { model
                 | messages =
                     Dict.update
@@ -258,11 +267,11 @@ update msgIn model =
                         (\mbMsg ->
                             case mbMsg of
                                 Just messages ->
-                                    str :: messages
+                                    message :: messages
                                         |> Just
 
                                 Nothing ->
-                                    [ str ]
+                                    [ message ]
                                         |> Just
                         )
                         model.messages
@@ -285,6 +294,19 @@ view toSelf model renderPID =
             [ Html.button [ Events.onClick (toSelf <| SetBg "#fff") ] [ Html.text "BG #fff" ]
             , Html.button [ Events.onClick (toSelf <| SetBg "#eee") ] [ Html.text "BG #eee" ]
             , Html.button [ Events.onClick (toSelf <| SetBg "#444") ] [ Html.text "BG #444" ]
+            , Html.pre
+                []
+                [ Html.div
+                    [ HA.style "color" "#061"
+                    ]
+                    [ Html.text "In Message"
+                    ]
+                , Html.div
+                    [ HA.style "color" "#00a"
+                    ]
+                    [ Html.text "  -> Out Message"
+                    ]
+                ]
             ]
         , Html.hr [] []
         , Html.div
@@ -321,23 +343,44 @@ renderChild model toSelf renderPID idx testCase child =
             ]
             [ Html.text "Reset test"
             ]
+        , Html.h4 [] [ Html.text "Component view:" ]
         , Html.div
             [ HA.style "margin" "2em 1em"
             , HA.style "background" model.bgColor
             ]
             [ renderPID child.pid
             ]
+        , Html.h4 [] [ Html.text "Message log:" ]
         , Html.pre
             [
             ]
-            [ Html.text "MsgOut:\n"
-            , model.messages
+            ( model.messages
                 |> Dict.get (PID.toString child.pid)
-                |> Maybe.map List.reverse
+                |> Maybe.map
+                    ( List.reverse
+                    >> List.map
+                        (\message ->
+                            case message of
+                                InMessage inMsg ->
+                                    inMsg
+                                        |> Html.text
+                                        |> List.singleton
+                                        |> Html.div
+                                            [ HA.style "margin-top" "0.5em"
+                                            , HA.style "color" "#061"
+                                            ]
+
+                                OutMessage outMsg ->
+                                    "  -> " ++ outMsg
+                                        |> Html.text
+                                        |> List.singleton
+                                        |> Html.div
+                                            [ HA.style "color" "#00a"
+                                            ]
+                        )
+                    )
                 |> Maybe.withDefault []
-                |> String.join "\n"
-                |> Html.text
-            ]
+            )
         , Html.hr [] []
         ]
 
