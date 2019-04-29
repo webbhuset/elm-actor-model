@@ -8,6 +8,7 @@ module Webbhuset.PID
         , insert
         , remove
         , toList
+        , isEmpty
         )
 
 import Webbhuset.Internal.PID as PID exposing (PID(..))
@@ -54,3 +55,8 @@ toList : Set -> List PID
 toList (PIDSet set) =
     Set.toList set
         |> List.map (\(prefix, id) -> PID prefix id)
+
+
+isEmpty : Set -> Bool
+isEmpty (PIDSet set) =
+    Set.isEmpty set
