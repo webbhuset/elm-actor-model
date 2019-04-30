@@ -12,10 +12,12 @@ import Html exposing (Html)
 import Html.Lazy as Html
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
+import Webbhuset.Internal.Control as Control exposing (Control(..))
+import Webbhuset.Internal.PID as PID
 
 
 type alias PID =
-    System.PID
+    PID.PID
 
 
 type alias Actor model process msg =
@@ -162,7 +164,7 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
                         >> System.sendToPID pid
                     )
                     cmd
-                    |> System.Cmd
+                    |> Control.Cmd
                     |> System.Ctrl
 
         msg =

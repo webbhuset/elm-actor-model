@@ -1,7 +1,5 @@
 module Webbhuset.ActorSystem exposing
     ( AppliedActor
-    , Control(..)
-    , Impl
     , Model
     , Msg(..)
     , PID
@@ -24,9 +22,9 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import List.Extra as List
 import Random
-import Task
 import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
+import Webbhuset.Internal.Control as Control exposing (Control(..))
 
 
 type alias PID =
@@ -40,25 +38,8 @@ type alias PID =
 type Msg actor msgTo
     = None
     | MsgTo msgTo
-    | Ctrl (Control actor msgTo)
+    | Ctrl (Control actor (Msg actor msgTo))
     | Init (Msg actor msgTo) String
-
-
-type Control actor msgTo
-    = Batch (List (Msg actor msgTo))
-    | Cmd (Cmd (Msg actor msgTo))
-    | Kill PID
-    | SendToPID PID (Msg actor msgTo)
-    | SendToSingleton actor (Msg actor msgTo)
-    | Spawn actor (PID -> Msg actor msgTo)
-    | SpawnSingleton actor
-    | AddView PID
-
-
-
---
--- Control
---
 
 
 none : Msg actor msgTo

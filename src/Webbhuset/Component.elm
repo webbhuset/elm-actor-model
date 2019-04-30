@@ -14,7 +14,6 @@ module Webbhuset.Component exposing
 
 import Html exposing (Html)
 import Html.Lazy as Html
-import Webbhuset.ActorSystem as System
 import Webbhuset.Internal.PID as PID
 
 
