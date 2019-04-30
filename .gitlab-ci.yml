@@ -1,0 +1,39 @@
+stages:
+  - compile
+  - docs
+
+
+###########
+## BUILD ##
+###########
+build-elm:
+  stage: compile
+  tags:
+    - elm
+  before_script:
+    - source /etc/profile
+    - git submodule sync
+    - git submodule update --init
+  script:
+    - rm -rf ./elm-stuff/
+    - make
+  only:
+    - master
+    - /^\d*-.*/
+
+
+build-elm:
+  stage: docs
+  tags:
+    - elm
+  before_script:
+    - source /etc/profile
+    - git submodule sync
+    - git submodule update --init
+  script:
+    - rm -rf ./elm-stuff/
+    - make docs
+  only:
+    - master
+    - /^\d*-.*/
+
