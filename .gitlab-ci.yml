@@ -6,7 +6,7 @@ stages:
 ###########
 ## BUILD ##
 ###########
-build-elm:
+compile-elm:
   stage: compile
   tags:
     - elm
@@ -22,7 +22,7 @@ build-elm:
     - /^\d*-.*/
 
 
-build-elm:
+compile-docs:
   stage: docs
   tags:
     - elm
