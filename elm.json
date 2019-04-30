@@ -7,8 +7,9 @@
     "exposed-modules": {
         "Components": [
             "Webbhuset.Component",
+            "Webbhuset.Component.Dev",
             "Webbhuset.PID",
-            "Webbhuset.Component.Dev"
+            "Webbhuset.PID.Set"
         ],
         "Actor System": [
             "Webbhuset.Actor",

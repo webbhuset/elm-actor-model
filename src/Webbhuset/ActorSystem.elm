@@ -18,6 +18,8 @@ module Webbhuset.ActorSystem exposing
 
 {-| Actor System
 
+@docs PID
+
 ## Control Messages
 
 @docs none
@@ -32,12 +34,16 @@ module Webbhuset.ActorSystem exposing
 
 ## Build and Initialize the System
 
+@docs element
+    , application
+
+## Bootstrap
+
+Don't worry about these for now.
+
 @docs AppliedActor
     , Model
     , Msg
-    , PID
-    , application
-    , element
 -}
 
 import Browser
@@ -213,7 +219,12 @@ type alias ApplicationImpl flags actor process msgTo =
 {-| Create a Browser.element program.
 
 -}
-element : ElementImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
+element :
+    { init : flags -> Msg actor msgTo
+    , spawn : actor -> PID -> ( process, Msg actor msgTo )
+    , apply : process -> AppliedActor process (Msg actor msgTo)
+    }
+    -> Program flags (Model actor process) (Msg actor msgTo)
 element impl =
     Browser.element
         { init = initElement impl
@@ -226,7 +237,14 @@ element impl =
 {-| Create a Browser.application program.
 
 -}
-application : ApplicationImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
+application :
+    { init : flags -> Url -> Nav.Key -> Msg actor msgTo
+    , spawn : actor -> PID -> ( process, Msg actor msgTo )
+    , apply : process -> AppliedActor process (Msg actor msgTo)
+    , onUrlRequest : Browser.UrlRequest -> Msg actor msgTo
+    , onUrlChange : Url -> Msg actor msgTo
+    }
+    -> Program flags (Model actor process) (Msg actor msgTo)
 application impl =
     Browser.application
         { init = initApplication impl

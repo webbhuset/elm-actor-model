@@ -28,12 +28,15 @@ module Webbhuset.Component exposing
 
 @docs Layout
 
-## Helpers for composing
-@docs addCmd
-    , addOutMsg
-    , andThen
-    , mapFirst
+## Helpers for the output Tuple
+
+There is no native elm module for a Tuple with three entries.
+
+@docs mapFirst
     , mapSecond
+    , andThen
+    , addOutMsg
+    , addCmd
 
 ## Helper for Queue
 
