@@ -12,8 +12,6 @@ compile-elm:
     - elm
   before_script:
     - source /etc/profile
-    - git submodule sync
-    - git submodule update --init
   script:
     - rm -rf ./elm-stuff/
     - make
@@ -28,8 +26,6 @@ compile-docs:
     - elm
   before_script:
     - source /etc/profile
-    - git submodule sync
-    - git submodule update --init
   script:
     - rm -rf ./elm-stuff/
     - make docs
