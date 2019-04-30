@@ -1,26 +1,26 @@
-module Webbhuset.Actor
-    exposing
-        ( Actor
-        , PID
-        , fromLayout
-        , fromUI
-        , fromService
-        , applyModel
-        )
+module Webbhuset.Actor exposing
+    ( Actor
+    , PID
+    , applyModel
+    , fromLayout
+    , fromService
+    , fromUI
+    )
 
-import Webbhuset.ActorSystem as System
-import Webbhuset.Component as Component
+import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
-import Browser
+import Webbhuset.ActorSystem as System
+import Webbhuset.Component as Component
 
 
-type alias PID = System.PID
+type alias PID =
+    System.PID
 
 
 type alias Actor model process msg =
-    { init : PID -> (process, msg)
-    , update : model -> msg -> PID -> (process, msg)
+    { init : PID -> ( process, msg )
+    , update : model -> msg -> PID -> ( process, msg )
     , view : model -> PID -> (PID -> Html msg) -> Html msg
     , kill : model -> PID -> msg
     , subs : model -> PID -> Sub msg
@@ -37,7 +37,6 @@ applyModel actor model =
     }
 
 
-
 fromLayout :
     (model -> process)
     -> (msgIn -> msgTo)
@@ -46,18 +45,20 @@ fromLayout :
     -> Component.Layout model msgIn msgOut (System.Msg component msgTo)
     -> Actor model process (System.Msg component msgTo)
 fromLayout toProcess toSelf fromGlobal toGlobal impl =
-    { init = \pid ->
-        impl.init pid
-            |> wrapTriple toSelf toGlobal pid
-            |> Tuple.mapFirst toProcess
+    { init =
+        \pid ->
+            impl.init pid
+                |> wrapTriple toSelf toGlobal pid
+                |> Tuple.mapFirst toProcess
     , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
-    , view = \s pid ->
-        impl.view
-            ( toSelf
-                >> System.msgTo
-                >> System.sendToPID pid
-            )
-            s
+    , view =
+        \s pid ->
+            impl.view
+                (toSelf
+                    >> System.msgTo
+                    >> System.sendToPID pid
+                )
+                s
     , kill = wrapKill toGlobal impl.kill
     , subs = wrapSub toSelf impl
     }
@@ -77,10 +78,11 @@ fromUI :
     -> Component.UI model msgIn msgOut
     -> Actor model process (System.Msg component msgTo)
 fromUI toProcess toSelf fromGlobal toGlobal impl =
-    { init = \pid ->
-        impl.init pid
-            |> wrapTriple toSelf toGlobal pid
-            |> Tuple.mapFirst toProcess
+    { init =
+        \pid ->
+            impl.init pid
+                |> wrapTriple toSelf toGlobal pid
+                |> Tuple.mapFirst toProcess
     , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
     , view = \s pid _ -> Html.lazy4 wrapView impl.view s toSelf pid
     , kill = wrapKill toGlobal impl.kill
@@ -92,10 +94,11 @@ wrapView : (model -> Html msgIn) -> model -> (msgIn -> msgTo) -> PID -> Html (Sy
 wrapView view model toSelf pid =
     view model
         |> Html.map
-            ( toSelf
+            (toSelf
                 >> System.msgTo
                 >> System.sendToPID pid
             )
+
 
 fromService :
     (model -> process)
@@ -105,10 +108,11 @@ fromService :
     -> Component.Service model msgIn msgOut
     -> Actor model process (System.Msg component msgTo)
 fromService toProcess toSelf fromGlobal toGlobal impl =
-    { init = \pid ->
-        impl.init pid
-            |> wrapTriple toSelf toGlobal pid
-            |> Tuple.mapFirst toProcess
+    { init =
+        \pid ->
+            impl.init pid
+                |> wrapTriple toSelf toGlobal pid
+                |> Tuple.mapFirst toProcess
     , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
     , view = \_ _ _ -> Html.text ""
     , kill = wrapKill toGlobal impl.kill
@@ -129,9 +133,10 @@ wrapSub toSelf impl model pid =
     in
     if sub == Sub.none then
         Sub.none
+
     else
         Sub.map
-            ( toSelf
+            (toSelf
                 >> System.msgTo
                 >> System.sendToPID pid
             )
@@ -144,20 +149,22 @@ wrapTriple :
     -> PID
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, System.Msg component msgTo )
-wrapTriple toSelf toGlobal pid (model, msgsOut, cmd) =
+wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
     let
         msgCmd =
             if cmd == Cmd.none then
                 System.none
+
             else
                 Cmd.map
-                    ( toSelf
+                    (toSelf
                         >> System.msgTo
                         >> System.sendToPID pid
                     )
                     cmd
                     |> System.Cmd
                     |> System.Ctrl
+
         msg =
             List.map (toGlobal pid) msgsOut
                 |> (::) msgCmd
@@ -169,12 +176,12 @@ wrapTriple toSelf toGlobal pid (model, msgsOut, cmd) =
 
 
 wrapRecv :
-    ( model -> process )
+    (model -> process)
     -> (msgIn -> msg)
     -> (System.Msg component msg -> Maybe msgIn)
     -> (PID -> msgOut -> System.Msg component msg)
     -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
-    -> ( model -> System.Msg component msg -> PID -> ( process, System.Msg component msg ))
+    -> (model -> System.Msg component msg -> PID -> ( process, System.Msg component msg ))
 wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
     case fromGlobal msg of
         Just msgIn ->
@@ -184,6 +191,3 @@ wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
 
         Nothing ->
             ( toProcess model, System.none )
-
-
-

@@ -1,38 +1,38 @@
-module Webbhuset.Component
-    exposing
-        ( UI
-        , Service
-        , Layout
-        , PID
-        , andThen
-        , mapFirst
-        , mapSecond
-        , addOutMsg
-        , addCmd
-        , runQueue
-        , addToQueue
-        )
+module Webbhuset.Component exposing
+    ( Layout
+    , PID
+    , Service
+    , UI
+    , addCmd
+    , addOutMsg
+    , addToQueue
+    , andThen
+    , mapFirst
+    , mapSecond
+    , runQueue
+    )
 
-import Webbhuset.ActorSystem as System
-import Webbhuset.Internal.PID as PID
 import Html exposing (Html)
 import Html.Lazy as Html
+import Webbhuset.ActorSystem as System
+import Webbhuset.Internal.PID as PID
 
 
-type alias PID = PID.PID -- Just for convenience
+type alias PID =
+    PID.PID
 
 
 type alias Service model msgIn msgOut =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    { init : PID -> ( model, List msgOut, Cmd msgIn )
+    , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
     }
 
 
 type alias UI model msgIn msgOut =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    { init : PID -> ( model, List msgOut, Cmd msgIn )
+    , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , view : model -> Html msgIn
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
@@ -40,15 +40,16 @@ type alias UI model msgIn msgOut =
 
 
 type alias Layout model msgIn msgOut msg =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
+    { init : PID -> ( model, List msgOut, Cmd msgIn )
+    , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , view : (msgIn -> msg) -> model -> (PID -> Html msg) -> Html msg
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
     }
 
 
-andThen : (model -> ( model, List msgOut, Cmd msgIn ))
+andThen :
+    (model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, List msgOut, Cmd msgIn )
 andThen fn ( m0, out0, cmd0 ) =
@@ -85,8 +86,9 @@ addCmd cmd1 ( x, y, cmd0 ) =
     ( x, y, Cmd.batch [ cmd0, cmd1 ] )
 
 
-runQueue : List msgIn
-    -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ) )
+runQueue :
+    List msgIn
+    -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, List msgOut, Cmd msgIn )
 runQueue queuedMsgs update initial =

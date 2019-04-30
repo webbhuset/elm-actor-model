@@ -1,30 +1,30 @@
-module Webbhuset.PID
-    exposing
-        ( PID
-        , Set
-        , toString
-        , null
-        , emptySet
-        , insert
-        , remove
-        , toList
-        , isEmpty
-        )
+module Webbhuset.PID exposing
+    ( PID
+    , Set
+    , emptySet
+    , insert
+    , isEmpty
+    , null
+    , remove
+    , toList
+    , toString
+    )
 
-import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Set
+import Webbhuset.Internal.PID as PID exposing (PID(..))
 
 
-type alias PID = PID.PID
+type alias PID =
+    PID.PID
 
 
-type Set =
-    PIDSet (Set.Set ( String, Int ))
+type Set
+    = PIDSet (Set.Set ( String, Int ))
 
 
 toString : PID -> String
 toString (PID prefix pid) =
-    prefix ++ (String.fromInt pid)
+    prefix ++ String.fromInt pid
 
 
 null : PID
@@ -32,7 +32,9 @@ null =
     PID "null" 0
 
 
+
 -- PID Set
+
 
 emptySet : Set
 emptySet =
@@ -54,7 +56,7 @@ remove (PID prefix pid) (PIDSet set) =
 toList : Set -> List PID
 toList (PIDSet set) =
     Set.toList set
-        |> List.map (\(prefix, id) -> PID prefix id)
+        |> List.map (\( prefix, id ) -> PID prefix id)
 
 
 isEmpty : Set -> Bool

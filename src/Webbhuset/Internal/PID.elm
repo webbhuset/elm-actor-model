@@ -1,4 +1,5 @@
-module Webbhuset.Internal.PID exposing (..)
+module Webbhuset.Internal.PID exposing (PID(..))
 
-type PID =
-    PID String Int
+
+type PID
+    = PID String Int
