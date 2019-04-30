@@ -16,6 +16,30 @@ module Webbhuset.ActorSystem exposing
     , spawnSingleton
     )
 
+{-| Actor System
+
+## Control Messages
+
+@docs none
+    , batch
+    , kill
+    , msgTo
+    , sendToPID
+    , sendToSingleton
+    , spawn
+    , spawnSingleton
+    , addView
+
+## Build and Initialize the System
+
+@docs AppliedActor
+    , Model
+    , Msg
+    , PID
+    , application
+    , element
+-}
+
 import Browser
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
@@ -27,6 +51,9 @@ import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Webbhuset.Internal.Control as Control exposing (Control(..))
 
 
+{-| A PID is an identifier for a Process.
+
+-}
 type alias PID =
     PID.PID
 
@@ -35,6 +62,9 @@ type alias PID =
 -- Ctrl
 
 
+{-| Your Elm Program will have this as its Msg type.
+
+-}
 type Msg actor msgTo
     = None
     | MsgTo msgTo
@@ -42,21 +72,34 @@ type Msg actor msgTo
     | Init (Msg actor msgTo) String
 
 
+{-| Do Nothing
+
+Similar concept to `Cmd.none`
+-}
 none : Msg actor msgTo
 none =
     None
 
 
+{-| Wrapper for actor msg types
+
+-}
 msgTo : msgTo -> Msg actor msgTo
 msgTo d =
     MsgTo d
 
 
+{-| Batch control messages
+
+-}
 batch : List (Msg actor msgTo) -> Msg actor msgTo
 batch list =
     Ctrl (Batch list)
 
 
+{-| Send a message to a Process
+
+-}
 sendToPID : PID -> Msg actor msgTo -> Msg actor msgTo
 sendToPID pid msg =
     if msg == None then
@@ -66,6 +109,9 @@ sendToPID pid msg =
         Ctrl (SendToPID pid msg)
 
 
+{-| Send a message to a Singleton Process
+
+-}
 sendToSingleton : actor -> Msg actor msgTo -> Msg actor msgTo
 sendToSingleton actor msg =
     if msg == None then
@@ -75,21 +121,33 @@ sendToSingleton actor msg =
         Ctrl (SendToSingleton actor msg)
 
 
+{-| Spawn a process. The PID will be send as a reply msg.
+
+-}
 spawn : actor -> (PID -> Msg actor msgTo) -> Msg actor msgTo
 spawn actor replyMsg =
     Ctrl (Spawn actor replyMsg)
 
 
+{-| Spawn a singleton process.
+
+-}
 spawnSingleton : actor -> Msg actor msgTo
 spawnSingleton actor =
     Ctrl (SpawnSingleton actor)
 
 
+{-| Kill a process
+
+-}
 kill : PID -> Msg actor msgTo
 kill pid =
     Ctrl (Kill pid)
 
 
+{-| Add a process to the global output.
+
+-}
 addView : PID -> Msg actor msgTo
 addView pid =
     Ctrl (AddView pid)
@@ -99,6 +157,9 @@ addView pid =
 -- Sys
 
 
+{-| The Global Model
+
+-}
 type alias Model actor process =
     { instances : Dict Int process
     , lastPID : Int
@@ -108,6 +169,9 @@ type alias Model actor process =
     }
 
 
+{-| An actor after the model has been applied
+
+-}
 type alias AppliedActor process msg =
     { init : PID -> ( process, msg )
     , update : msg -> PID -> ( process, msg )
@@ -124,20 +188,31 @@ type alias Impl actor process msgTo a =
     }
 
 
+{-| The implementation of a Browser.element program
+
+-}
 type alias ElementImpl flags actor process msgTo =
-    Impl actor process msgTo
-        { init : flags -> Msg actor msgTo
-        }
+    { init : flags -> Msg actor msgTo
+    , spawn : actor -> PID -> ( process, Msg actor msgTo )
+    , apply : process -> AppliedActor process (Msg actor msgTo)
+    }
 
 
+{-| The implementation of a Browser.application program
+
+-}
 type alias ApplicationImpl flags actor process msgTo =
-    Impl actor process msgTo
-        { init : flags -> Url -> Nav.Key -> Msg actor msgTo
-        , onUrlRequest : Browser.UrlRequest -> Msg actor msgTo
-        , onUrlChange : Url -> Msg actor msgTo
-        }
+    { init : flags -> Url -> Nav.Key -> Msg actor msgTo
+    , spawn : actor -> PID -> ( process, Msg actor msgTo )
+    , apply : process -> AppliedActor process (Msg actor msgTo)
+    , onUrlRequest : Browser.UrlRequest -> Msg actor msgTo
+    , onUrlChange : Url -> Msg actor msgTo
+    }
 
 
+{-| Create a Browser.element program.
+
+-}
 element : ElementImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
 element impl =
     Browser.element
@@ -148,6 +223,9 @@ element impl =
         }
 
 
+{-| Create a Browser.application program.
+
+-}
 application : ApplicationImpl flags actor process msgTo -> Program flags (Model actor process) (Msg actor msgTo)
 application impl =
     Browser.application

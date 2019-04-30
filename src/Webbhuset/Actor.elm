@@ -7,6 +7,17 @@ module Webbhuset.Actor exposing
     , fromUI
     )
 
+{-|
+
+## Create Actors from Components
+
+@docs fromUI, fromService, fromLayout
+
+## Bootstrap
+
+@docs Actor, PID, applyModel
+
+-}
 import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
@@ -16,10 +27,17 @@ import Webbhuset.Internal.Control as Control exposing (Control(..))
 import Webbhuset.Internal.PID as PID
 
 
+{-| A PID is an identifier for a Process.
+
+-}
 type alias PID =
     PID.PID
 
 
+{-| An actor is acomponent where the types are wrapped
+to fit the System types.
+
+-}
 type alias Actor model process msg =
     { init : PID -> ( process, msg )
     , update : model -> msg -> PID -> ( process, msg )
@@ -29,6 +47,9 @@ type alias Actor model process msg =
     }
 
 
+{-| Apply the model to an actor.
+
+-}
 applyModel : Actor model process msg -> model -> System.AppliedActor process msg
 applyModel actor model =
     { init = actor.init
@@ -39,6 +60,9 @@ applyModel actor model =
     }
 
 
+{-| Create an actor from a Layout Component
+
+-}
 fromLayout :
     (model -> process)
     -> (msgIn -> msgTo)
@@ -72,6 +96,9 @@ wrapKill toGlobal impl model pid =
         |> System.batch
 
 
+{-| Create an actor from a UI Component
+
+-}
 fromUI :
     (model -> process)
     -> (msgIn -> msgTo)
@@ -102,6 +129,9 @@ wrapView view model toSelf pid =
             )
 
 
+{-| Create an actor from a Service Component
+
+-}
 fromService :
     (model -> process)
     -> (msgIn -> msgTo)

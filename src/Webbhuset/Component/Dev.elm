@@ -5,6 +5,12 @@ module Webbhuset.Component.Dev exposing
     , testUI
     )
 
+{-| Develop Components
+
+@docs TestProgram, Model, TestCase, testUI
+
+-}
+
 import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as HA
@@ -16,14 +22,35 @@ import Webbhuset.Internal.PID exposing (PID(..))
 import Webbhuset.PID as PID
 
 
+{-| The Application model
+
+-}
 type alias Model m msgIn =
     System.Model ActorName (Process m msgIn)
 
 
+{-| The Program
+
+-}
 type alias TestProgram m msgIn =
     Program () (Model m msgIn) (Msg msgIn)
 
 
+{-| A test case for the Component
+
+-}
+type alias TestCase msgIn =
+    { title : String
+    , desc : String
+    , init : List msgIn
+    }
+
+
+{-| Wrap a component in a sandbox application.
+
+This will log all messages to help with development.
+
+-}
 testUI : Component.UI m msgIn msgOut -> String -> List (TestCase msgIn) -> TestProgram m msgIn
 testUI ui title cases =
     let
@@ -167,12 +194,6 @@ component tests =
     , subs = always Sub.none
     }
 
-
-type alias TestCase msgIn =
-    { title : String
-    , desc : String
-    , init : List msgIn
-    }
 
 
 type alias Child =
