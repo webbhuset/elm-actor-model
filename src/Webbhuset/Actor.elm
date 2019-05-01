@@ -9,23 +9,24 @@ module Webbhuset.Actor exposing
 
 {-|
 
+@docs PID
+
 ## Create Actors from Components
 
 @docs fromUI, fromService, fromLayout
 
 ## Bootstrap
 
-@docs Actor, PID, applyModel
+@docs Actor, applyModel
 
 -}
 import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
-import Webbhuset.ActorSystem as System
+import Webbhuset.ActorSystem as System exposing (SysMsg)
 import Webbhuset.Component as Component
 import Webbhuset.Internal.Control as Control exposing (Control(..))
 import Webbhuset.Internal.PID as PID
-
 
 {-| A PID is an identifier for a Process.
 
@@ -38,19 +39,19 @@ type alias PID =
 to fit the System types.
 
 -}
-type alias Actor model process msg =
-    { init : PID -> ( process, msg )
-    , update : model -> msg -> PID -> ( process, msg )
-    , view : model -> PID -> (PID -> Html msg) -> Html msg
-    , kill : model -> PID -> msg
-    , subs : model -> PID -> Sub msg
+type alias Actor compModel appModel msg =
+    { init : PID -> ( appModel, msg )
+    , update : compModel -> msg -> PID -> ( appModel, msg )
+    , view : compModel -> PID -> (PID -> Html msg) -> Html msg
+    , kill : compModel -> PID -> msg
+    , subs : compModel -> PID -> Sub msg
     }
 
 
-{-| Apply the model to an actor.
+{-| Apply the compModel to an actor.
 
 -}
-applyModel : Actor model process msg -> model -> System.AppliedActor process msg
+applyModel : Actor compModel appModel msg -> compModel -> System.AppliedActor appModel msg
 applyModel actor model =
     { init = actor.init
     , update = actor.update model
@@ -64,29 +65,30 @@ applyModel actor model =
 
 -}
 fromLayout :
-    (model -> process)
-    -> (msgIn -> msgTo)
-    -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (PID -> msgOut -> System.Msg component msgTo)
-    -> Component.Layout model msgIn msgOut (System.Msg component msgTo)
-    -> Actor model process (System.Msg component msgTo)
-fromLayout toProcess toSelf fromGlobal toGlobal impl =
+    { wrapModel : compModel -> appModel
+    , wrapMsg : msgIn -> appMsg
+    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , toApp : PID -> msgOut -> SysMsg name appMsg
+    }
+    -> Component.Layout compModel msgIn msgOut (SysMsg name appMsg)
+    -> Actor compModel appModel (SysMsg name appMsg)
+fromLayout args component =
     { init =
         \pid ->
-            impl.init pid
-                |> wrapTriple toSelf toGlobal pid
-                |> Tuple.mapFirst toProcess
-    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
+            component.init pid
+                |> wrapTriple args.wrapMsg args.toApp pid
+                |> Tuple.mapFirst args.wrapModel
+    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
     , view =
         \s pid ->
-            impl.view
-                (toSelf
-                    >> System.msgTo
+            component.view
+                (args.wrapMsg
+                    >> System.toAppMsg
                     >> System.sendToPID pid
                 )
                 s
-    , kill = wrapKill toGlobal impl.kill
-    , subs = wrapSub toSelf impl
+    , kill = wrapKill args.toApp component.kill
+    , subs = wrapSub args.wrapMsg component
     }
 
 
@@ -98,33 +100,35 @@ wrapKill toGlobal impl model pid =
 
 {-| Create an actor from a UI Component
 
+
 -}
 fromUI :
-    (model -> process)
-    -> (msgIn -> msgTo)
-    -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (PID -> msgOut -> System.Msg component msgTo)
-    -> Component.UI model msgIn msgOut
-    -> Actor model process (System.Msg component msgTo)
-fromUI toProcess toSelf fromGlobal toGlobal impl =
+    { wrapModel : compModel -> appModel
+    , wrapMsg : msgIn -> appMsg
+    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , toApp : PID -> msgOut -> SysMsg name appMsg
+    }
+    -> Component.UI compModel msgIn msgOut
+    -> Actor compModel appModel (SysMsg name appMsg)
+fromUI args component =
     { init =
         \pid ->
-            impl.init pid
-                |> wrapTriple toSelf toGlobal pid
-                |> Tuple.mapFirst toProcess
-    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
-    , view = \s pid _ -> Html.lazy4 wrapView impl.view s toSelf pid
-    , kill = wrapKill toGlobal impl.kill
-    , subs = wrapSub toSelf impl
+            component.init pid
+                |> wrapTriple args.wrapMsg args.toApp pid
+                |> Tuple.mapFirst args.wrapModel
+    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
+    , view = \s pid _ -> Html.lazy4 wrapView component.view s args.wrapMsg pid
+    , kill = wrapKill args.toApp component.kill
+    , subs = wrapSub args.wrapMsg component
     }
 
 
-wrapView : (model -> Html msgIn) -> model -> (msgIn -> msgTo) -> PID -> Html (System.Msg actor msgTo)
+wrapView : (compModel -> Html msgIn) -> compModel -> (msgIn -> appMsg) -> PID -> Html (SysMsg actor appMsg)
 wrapView view model toSelf pid =
     view model
         |> Html.map
             (toSelf
-                >> System.msgTo
+                >> System.toAppMsg
                 >> System.sendToPID pid
             )
 
@@ -133,31 +137,32 @@ wrapView view model toSelf pid =
 
 -}
 fromService :
-    (model -> process)
-    -> (msgIn -> msgTo)
-    -> (System.Msg component msgTo -> Maybe msgIn)
-    -> (PID -> msgOut -> System.Msg component msgTo)
-    -> Component.Service model msgIn msgOut
-    -> Actor model process (System.Msg component msgTo)
-fromService toProcess toSelf fromGlobal toGlobal impl =
+    { wrapModel : compModel -> appModel
+    , wrapMsg : msgIn -> appMsg
+    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , toApp : PID -> msgOut -> SysMsg name appMsg
+    }
+    -> Component.Service compModel msgIn msgOut
+    -> Actor compModel appModel (SysMsg name appMsg)
+fromService args impl =
     { init =
         \pid ->
             impl.init pid
-                |> wrapTriple toSelf toGlobal pid
-                |> Tuple.mapFirst toProcess
-    , update = wrapRecv toProcess toSelf fromGlobal toGlobal impl.update
+                |> wrapTriple args.wrapMsg args.toApp pid
+                |> Tuple.mapFirst args.wrapModel
+    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp impl.update
     , view = \_ _ _ -> Html.text ""
-    , kill = wrapKill toGlobal impl.kill
-    , subs = wrapSub toSelf impl
+    , kill = wrapKill args.toApp impl.kill
+    , subs = wrapSub args.wrapMsg impl
     }
 
 
 wrapSub :
-    (msgIn -> msgTo)
-    -> { a | subs : model -> Sub msgIn }
-    -> model
+    (msgIn -> appMsg)
+    -> { a | subs : compModel -> Sub msgIn }
+    -> compModel
     -> PID
-    -> Sub (System.Msg component msgTo)
+    -> Sub (SysMsg name appMsg)
 wrapSub toSelf impl model pid =
     let
         sub =
@@ -169,18 +174,18 @@ wrapSub toSelf impl model pid =
     else
         Sub.map
             (toSelf
-                >> System.msgTo
+                >> System.toAppMsg
                 >> System.sendToPID pid
             )
             sub
 
 
 wrapTriple :
-    (msgIn -> msgTo)
-    -> (PID -> msgOut -> System.Msg component msgTo)
+    (msgIn -> appMsg)
+    -> (PID -> msgOut -> SysMsg name appMsg)
     -> PID
-    -> ( model, List msgOut, Cmd msgIn )
-    -> ( model, System.Msg component msgTo )
+    -> ( compModel, List msgOut, Cmd msgIn )
+    -> ( compModel, SysMsg name appMsg )
 wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
     let
         msgCmd =
@@ -190,7 +195,7 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
             else
                 Cmd.map
                     (toSelf
-                        >> System.msgTo
+                        >> System.toAppMsg
                         >> System.sendToPID pid
                     )
                     cmd
@@ -208,12 +213,12 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
 
 
 wrapRecv :
-    (model -> process)
+    (compModel -> appModel)
     -> (msgIn -> msg)
-    -> (System.Msg component msg -> Maybe msgIn)
-    -> (PID -> msgOut -> System.Msg component msg)
-    -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
-    -> (model -> System.Msg component msg -> PID -> ( process, System.Msg component msg ))
+    -> (SysMsg name msg -> Maybe msgIn)
+    -> (PID -> msgOut -> SysMsg name msg)
+    -> (msgIn -> compModel -> ( compModel, List msgOut, Cmd msgIn ))
+    -> (compModel -> SysMsg name msg -> PID -> ( appModel, SysMsg name msg ))
 wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
     case fromGlobal msg of
         Just msgIn ->

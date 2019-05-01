@@ -1,14 +1,14 @@
 module Webbhuset.ActorSystem exposing
     ( AppliedActor
     , Model
-    , Msg(..)
+    , SysMsg(..)
     , PID
     , application
     , addView
     , batch
     , element
     , kill
-    , msgTo
+    , toAppMsg
     , none
     , sendToPID
     , sendToSingleton
@@ -20,22 +20,24 @@ module Webbhuset.ActorSystem exposing
 
 @docs PID
 
-## Control Messages
+## Build and Initialize the System
+
+@docs element
+    , application
+
+## System Messages
+
+Use these to send messages between actors in your system.
 
 @docs none
     , batch
     , kill
-    , msgTo
+    , toAppMsg
     , sendToPID
     , sendToSingleton
     , spawn
     , spawnSingleton
     , addView
-
-## Build and Initialize the System
-
-@docs element
-    , application
 
 ## Bootstrap
 
@@ -43,7 +45,7 @@ Don't worry about these for now.
 
 @docs AppliedActor
     , Model
-    , Msg
+    , SysMsg
 -}
 
 import Browser
@@ -68,37 +70,38 @@ type alias PID =
 -- Ctrl
 
 
-{-| Your Elm Program will have this as its Msg type.
+{-| Your Elm Program will have this as its SysMsg type.
 
 -}
-type Msg actor msgTo
+type SysMsg name appMsg
     = None
-    | MsgTo msgTo
-    | Ctrl (Control actor (Msg actor msgTo))
-    | Init (Msg actor msgTo) String
+    | AppMsg appMsg
+    | Ctrl (Control name (SysMsg name appMsg))
+    | Init (SysMsg name appMsg) String
 
 
-{-| Do Nothing
+{-| Don't send anything.
 
 Similar concept to `Cmd.none`
 -}
-none : Msg actor msgTo
+none : SysMsg name appMsg
 none =
     None
 
 
-{-| Wrapper for actor msg types
+{-| Wrapper for you app's msg type
 
 -}
-msgTo : msgTo -> Msg actor msgTo
-msgTo d =
-    MsgTo d
+toAppMsg : appMsg -> SysMsg name appMsg
+toAppMsg d =
+    AppMsg d
 
 
 {-| Batch control messages
 
+Similar concept to `Cmd.batch`
 -}
-batch : List (Msg actor msgTo) -> Msg actor msgTo
+batch : List (SysMsg name appMsg) -> SysMsg name appMsg
 batch list =
     Ctrl (Batch list)
 
@@ -106,7 +109,7 @@ batch list =
 {-| Send a message to a Process
 
 -}
-sendToPID : PID -> Msg actor msgTo -> Msg actor msgTo
+sendToPID : PID -> SysMsg name appMsg -> SysMsg name appMsg
 sendToPID pid msg =
     if msg == None then
         msg
@@ -118,35 +121,35 @@ sendToPID pid msg =
 {-| Send a message to a Singleton Process
 
 -}
-sendToSingleton : actor -> Msg actor msgTo -> Msg actor msgTo
-sendToSingleton actor msg =
+sendToSingleton : name -> SysMsg name appMsg -> SysMsg name appMsg
+sendToSingleton name msg =
     if msg == None then
         msg
 
     else
-        Ctrl (SendToSingleton actor msg)
+        Ctrl (SendToSingleton name msg)
 
 
 {-| Spawn a process. The PID will be send as a reply msg.
 
 -}
-spawn : actor -> (PID -> Msg actor msgTo) -> Msg actor msgTo
-spawn actor replyMsg =
-    Ctrl (Spawn actor replyMsg)
+spawn : name -> (PID -> SysMsg name appMsg) -> SysMsg name appMsg
+spawn name replyMsg =
+    Ctrl (Spawn name replyMsg)
 
 
 {-| Spawn a singleton process.
 
 -}
-spawnSingleton : actor -> Msg actor msgTo
-spawnSingleton actor =
-    Ctrl (SpawnSingleton actor)
+spawnSingleton : name -> SysMsg name appMsg
+spawnSingleton name =
+    Ctrl (SpawnSingleton name)
 
 
 {-| Kill a process
 
 -}
-kill : PID -> Msg actor msgTo
+kill : PID -> SysMsg name appMsg
 kill pid =
     Ctrl (Kill pid)
 
@@ -154,7 +157,7 @@ kill pid =
 {-| Add a process to the global output.
 
 -}
-addView : PID -> Msg actor msgTo
+addView : PID -> SysMsg name appMsg
 addView pid =
     Ctrl (AddView pid)
 
@@ -166,11 +169,11 @@ addView pid =
 {-| The Global Model
 
 -}
-type alias Model actor process =
-    { instances : Dict Int process
+type alias Model name appModel =
+    { instances : Dict Int appModel
     , lastPID : Int
     , prefix : String
-    , singleton : List ( actor, PID )
+    , singleton : List ( name, PID )
     , views : List PID
     }
 
@@ -178,53 +181,55 @@ type alias Model actor process =
 {-| An actor after the model has been applied
 
 -}
-type alias AppliedActor process msg =
-    { init : PID -> ( process, msg )
-    , update : msg -> PID -> ( process, msg )
+type alias AppliedActor appModel msg =
+    { init : PID -> ( appModel, msg )
+    , update : msg -> PID -> ( appModel, msg )
     , view : PID -> (PID -> Html msg) -> Html msg
     , kill : PID -> msg
     , subs : PID -> Sub msg
     }
 
 
-type alias Impl actor process msgTo a =
+type alias Impl name appModel appMsg a =
     { a
-        | spawn : actor -> PID -> ( process, Msg actor msgTo )
-        , apply : process -> AppliedActor process (Msg actor msgTo)
+        | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+        , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
     }
 
 
 {-| The implementation of a Browser.element program
 
 -}
-type alias ElementImpl flags actor process msgTo =
-    { init : flags -> Msg actor msgTo
-    , spawn : actor -> PID -> ( process, Msg actor msgTo )
-    , apply : process -> AppliedActor process (Msg actor msgTo)
+type alias ElementImpl flags name appModel appMsg =
+    { init : flags -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
     }
 
 
 {-| The implementation of a Browser.application program
 
 -}
-type alias ApplicationImpl flags actor process msgTo =
-    { init : flags -> Url -> Nav.Key -> Msg actor msgTo
-    , spawn : actor -> PID -> ( process, Msg actor msgTo )
-    , apply : process -> AppliedActor process (Msg actor msgTo)
-    , onUrlRequest : Browser.UrlRequest -> Msg actor msgTo
-    , onUrlChange : Url -> Msg actor msgTo
+type alias ApplicationImpl flags name appModel appMsg =
+    { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
+    , onUrlChange : Url -> SysMsg name appMsg
     }
 
 
-{-| Create a Browser.element program.
+{-| Create a [Browser.element] from your Actor System
+
+[Browser.element]: https://package.elm-lang.org/packages/elm/browser/latest/Browser#element
 
 -}
 element :
-    { init : flags -> Msg actor msgTo
-    , spawn : actor -> PID -> ( process, Msg actor msgTo )
-    , apply : process -> AppliedActor process (Msg actor msgTo)
+    { init : flags -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
     }
-    -> Program flags (Model actor process) (Msg actor msgTo)
+    -> Program flags (Model name appModel) (SysMsg name appMsg)
 element impl =
     Browser.element
         { init = initElement impl
@@ -234,17 +239,19 @@ element impl =
         }
 
 
-{-| Create a Browser.application program.
+{-| Create a [Browser.application] from your Actor System
+
+[Browser.application]: https://package.elm-lang.org/packages/elm/browser/latest/Browser#application
 
 -}
 application :
-    { init : flags -> Url -> Nav.Key -> Msg actor msgTo
-    , spawn : actor -> PID -> ( process, Msg actor msgTo )
-    , apply : process -> AppliedActor process (Msg actor msgTo)
-    , onUrlRequest : Browser.UrlRequest -> Msg actor msgTo
-    , onUrlChange : Url -> Msg actor msgTo
+    { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
+    , onUrlChange : Url -> SysMsg name appMsg
     }
-    -> Program flags (Model actor process) (Msg actor msgTo)
+    -> Program flags (Model name appModel) (SysMsg name appMsg)
 application impl =
     Browser.application
         { init = initApplication impl
@@ -256,7 +263,7 @@ application impl =
         }
 
 
-initElement : ElementImpl flags actor process msgTo -> flags -> ( Model actor process, Cmd (Msg actor msgTo) )
+initElement : ElementImpl flags name appModel appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initElement impl flags =
     Tuple.pair
         { instances = Dict.empty
@@ -272,11 +279,11 @@ initElement impl flags =
 
 
 initApplication :
-    ApplicationImpl flags actor process msgTo
+    ApplicationImpl flags name appModel appMsg
     -> flags
     -> Url
     -> Nav.Key
-    -> ( Model actor process, Cmd (Msg actor msgTo) )
+    -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initApplication impl flags url key =
     Tuple.pair
         { instances = Dict.empty
@@ -311,13 +318,13 @@ prefixGenerator =
             )
 
 
-update : Impl actor process msgTo a -> Msg actor msgTo -> Model actor process -> ( Model actor process, Cmd (Msg actor msgTo) )
+update : Impl name appModel appMsg a -> SysMsg name appMsg -> Model name appModel -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 update impl msg model =
     case msg of
         None ->
             ( model, Cmd.none )
 
-        MsgTo _ ->
+        AppMsg _ ->
             ( model, Cmd.none )
 
         Init initMsg prefix ->
@@ -339,10 +346,10 @@ update impl msg model =
 
                 SendToPID pid message ->
                     case getProcess pid model of
-                        Just process ->
+                        Just appModel ->
                             let
                                 ( m2, newMsg ) =
-                                    .update (impl.apply process) message pid
+                                    .update (impl.apply appModel) message pid
                                         |> Tuple.mapFirst (updateInstanceIn model pid)
                             in
                             update impl newMsg m2
@@ -350,32 +357,32 @@ update impl msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                SendToSingleton actor message ->
-                    case findSingletonPID actor model of
+                SendToSingleton name message ->
+                    case findSingletonPID name model of
                         Just pid ->
                             update impl (sendToPID pid message) model
 
                         Nothing ->
-                            update impl (spawnSingleton actor) model
+                            update impl (spawnSingleton name) model
                                 |> cmdAndThen (update impl msg)
 
-                Spawn actor replyMsg ->
+                Spawn name replyMsg ->
                     let
                         ( m2, pid ) =
                             newPID model
 
                         ( m3, newMsg ) =
-                            spawn_ impl actor pid m2
+                            spawn_ impl name pid m2
                     in
                     update impl newMsg m3
                         |> cmdAndThen (update impl (replyMsg pid))
 
                 Kill ((PID _ pid) as p) ->
                     case Dict.get pid model.instances of
-                        Just process ->
+                        Just appModel ->
                             let
                                 componentLastWords =
-                                    .kill (impl.apply process) p
+                                    .kill (impl.apply appModel) p
                             in
                             { model | instances = Dict.remove pid model.instances }
                                 |> update impl componentLastWords
@@ -383,14 +390,14 @@ update impl msg model =
                         Nothing ->
                             ( model, Cmd.none )
 
-                SpawnSingleton actor ->
+                SpawnSingleton name ->
                     let
                         ( m2, pid ) =
                             newPID model
 
                         ( m3, newMsg ) =
-                            appendSingleton actor pid m2
-                                |> spawn_ impl actor pid
+                            appendSingleton name pid m2
+                                |> spawn_ impl name pid
                     in
                     update impl newMsg m3
 
@@ -400,56 +407,56 @@ update impl msg model =
                     )
 
 
-spawn_ : Impl actor process msgTo a -> actor -> PID -> Model actor process -> ( Model actor process, Msg actor msgTo )
-spawn_ impl actor pid model =
-    impl.spawn actor pid
+spawn_ : Impl name appModel appMsg a -> name -> PID -> Model name appModel -> ( Model name appModel, SysMsg name appMsg )
+spawn_ impl name pid model =
+    impl.spawn name pid
         |> Tuple.mapFirst (updateInstanceIn model pid)
 
 
-newPID : Model actor process -> ( Model actor process, PID )
+newPID : Model name appModel -> ( Model name appModel, PID )
 newPID model =
     model.lastPID
         |> PID model.prefix
         |> Tuple.pair { model | lastPID = 1 + model.lastPID }
 
 
-getProcess : PID -> Model actor process -> Maybe process
+getProcess : PID -> Model name appModel -> Maybe appModel
 getProcess (PID _ pid) model =
     Dict.get pid model.instances
 
 
-getInstanceFrom : Model actor process -> PID -> Maybe process
+getInstanceFrom : Model name appModel -> PID -> Maybe appModel
 getInstanceFrom model (PID _ pid) =
     Dict.get pid model.instances
 
 
-updateInstanceIn : Model actor process -> PID -> process -> Model actor process
-updateInstanceIn model (PID _ pid) process =
-    { model | instances = Dict.insert pid process model.instances }
+updateInstanceIn : Model name appModel -> PID -> appModel -> Model name appModel
+updateInstanceIn model (PID _ pid) appModel =
+    { model | instances = Dict.insert pid appModel model.instances }
 
 
-appendSingleton : actor -> PID -> Model actor process -> Model actor process
-appendSingleton actor pid model =
+appendSingleton : name -> PID -> Model name appModel -> Model name appModel
+appendSingleton name pid model =
     { model
-        | singleton = ( actor, pid ) :: model.singleton
+        | singleton = ( name, pid ) :: model.singleton
     }
 
 
-findSingletonPID : actor -> Model actor process -> Maybe PID
-findSingletonPID actor model =
+findSingletonPID : name -> Model name appModel -> Maybe PID
+findSingletonPID name model =
     model.singleton
-        |> List.find (\( a, _ ) -> a == actor)
+        |> List.find (\( a, _ ) -> a == name)
         |> Maybe.map Tuple.second
 
 
-subscriptions : Impl actor process msgTo a -> Model actor process -> Sub (Msg actor msgTo)
+subscriptions : Impl name appModel appMsg a -> Model name appModel -> Sub (SysMsg name appMsg)
 subscriptions impl model =
     model.instances
         |> Dict.foldl
-            (\pid process subs ->
+            (\pid appModel subs ->
                 let
                     sub =
-                        .subs (impl.apply process) (PID model.prefix pid)
+                        .subs (impl.apply appModel) (PID model.prefix pid)
                 in
                 if sub == Sub.none then
                     subs
@@ -461,7 +468,7 @@ subscriptions impl model =
         |> Sub.batch
 
 
-view : Impl actor process msgTo a -> Model actor process -> Html (Msg actor msgTo)
+view : Impl name appModel appMsg a -> Model name appModel -> Html (SysMsg name appMsg)
 view impl model =
     model.views
         ++ List.map Tuple.second model.singleton
@@ -469,12 +476,12 @@ view impl model =
         |> Html.div []
 
 
-renderPID : (process -> PID -> (PID -> Html msg) -> Html msg) -> Dict Int process -> PID -> Html msg
+renderPID : (appModel -> PID -> (PID -> Html msg) -> Html msg) -> Dict Int appModel -> PID -> Html msg
 renderPID viewFn dict ((PID prefix pid) as p) =
     Dict.get pid dict
         |> Maybe.map
-            (\process ->
-                viewFn process p (renderPID viewFn dict)
+            (\appModel ->
+                viewFn appModel p (renderPID viewFn dict)
             )
         |> Maybe.withDefault (Html.text "")
 

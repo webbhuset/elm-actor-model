@@ -1,13 +1,12 @@
 module Webbhuset.Component.Dev exposing
     ( TestProgram
-    , Model
     , TestCase
     , testUI
     )
 
 {-| Develop Components
 
-@docs TestProgram, Model, TestCase, testUI
+@docs TestProgram, TestCase, testUI
 
 -}
 
@@ -29,11 +28,11 @@ type alias Model m msgIn =
     System.Model ActorName (Process m msgIn)
 
 
-{-| The Program
+{-| The Program type of your main function.
 
 -}
-type alias TestProgram m msgIn =
-    Program () (Model m msgIn) (Msg msgIn)
+type alias TestProgram model msgIn =
+    Program () (Model model msgIn) (Msg msgIn)
 
 
 {-| A test case for the Component
@@ -51,21 +50,27 @@ type alias TestCase msgIn =
 This will log all messages to help with development.
 
 -}
-testUI : Component.UI m msgIn msgOut -> String -> List (TestCase msgIn) -> TestProgram m msgIn
-testUI ui title cases =
+testUI :
+    { title : String
+    , component : Component.UI model msgIn msgOut
+    , cases : List (TestCase msgIn)
+    }
+    -> TestProgram model msgIn
+testUI args =
     let
         testedActor =
             Actor.fromUI
-                P_Component
-                ComponentMsg
-                testedMapIn
-                testedMapOut
-                ui
+                { wrapModel = P_Component
+                , wrapMsg = ComponentMsg
+                , fromApp = testedMapIn
+                , toApp = testedMapOut
+                }
+                args.component
     in
     System.element
-        { init = initApp title
-        , spawn = spawn cases testedActor
-        , apply = applyModel cases testedActor
+        { init = initApp args.title
+        , spawn = spawn args.cases testedActor
+        , apply = applyModel args.cases testedActor
         }
 
 
@@ -74,14 +79,14 @@ initApp title _ =
     System.batch
         [ System.spawnSingleton DevActor
         , System.sendToSingleton DevActor
-            (System.msgTo <| DevMsg <| SetTitle title)
+            (System.toAppMsg <| DevMsg <| SetTitle title)
         ]
 
 
 testedMapIn : Msg msgIn -> Maybe msgIn
 testedMapIn globalMsg =
     case globalMsg of
-        System.MsgTo (ComponentMsg msg) ->
+        System.AppMsg (ComponentMsg msg) ->
             Just msg
 
         _ ->
@@ -95,7 +100,7 @@ testedMapOut pid componentMsg =
         |> OutMessage
         |> AddMsg pid
         |> DevMsg
-        |> System.msgTo
+        |> System.toAppMsg
         |> System.sendToSingleton DevActor
 
 
@@ -114,10 +119,10 @@ type Process model msgIn
 
 
 type alias Msg msgIn =
-    System.Msg ActorName (MsgTo msgIn)
+    System.SysMsg ActorName (AppMsg msgIn)
 
 
-type MsgTo msgIn
+type AppMsg msgIn
     = DevMsg MsgIn
     | ComponentMsg msgIn
 
@@ -149,17 +154,18 @@ applyModel tests testedActor process =
 actor : List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
 actor tests =
     Actor.fromLayout
-        P_Dev
-        DevMsg
-        mapIn
-        mapOut
+        { wrapModel = P_Dev
+        , wrapMsg = DevMsg
+        , fromApp = mapIn
+        , toApp = mapOut
+        }
         (component tests)
 
 
 mapIn : Msg msgIn -> Maybe MsgIn
 mapIn globalMsg =
     case globalMsg of
-        System.MsgTo (DevMsg msg) ->
+        System.AppMsg (DevMsg msg) ->
             Just msg
 
         _ ->
@@ -170,14 +176,23 @@ mapOut : PID -> MsgOut msgIn -> Msg msgIn
 mapOut p componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
-            System.spawn TestedActor
-                (\pid -> System.sendToPID replyPID (System.msgTo (DevMsg <| reply pid)))
+             reply
+                >> DevMsg
+                >> System.toAppMsg
+                >> System.sendToPID replyPID
+                |> System.spawn TestedActor
 
         SendTo pid msg ->
             System.batch
-                [ System.sendToSingleton DevActor
-                    (System.msgTo (DevMsg <| AddMsg pid (InMessage <| Debug.toString msg)))
-                , System.sendToPID pid (System.msgTo (ComponentMsg msg))
+                [ Debug.toString msg
+                    |> InMessage
+                    |> AddMsg pid
+                    |> DevMsg
+                    |> System.toAppMsg
+                    |> System.sendToSingleton DevActor
+                , ComponentMsg msg
+                    |> System.toAppMsg
+                    |> System.sendToPID pid
                 ]
 
 

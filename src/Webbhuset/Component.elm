@@ -3,39 +3,81 @@ module Webbhuset.Component exposing
     , Service
     , UI
     , PID
+    , Queue
     , addCmd
     , addOutMsg
     , addToQueue
     , andThen
     , mapFirst
     , mapSecond
+    , mapThird
     , runQueue
     , toCmd
     , toCmdWithDelay
     )
 
-{-| Build Components
+{-|
 
 @docs PID
 
-## UI component
+# Components
+
+Components are like normal elm programs. They have their own
+model, they can do commands and subscriptions. The difference is
+that they have out messages.
+
+This means you will have two `Msg` types: `MsgIn` and `MsgOut`. MsgIn
+is conceptually the same as your normal `Msg` type would be.
+
+MsgOut is a way to "tell" the rest of the system that something happened in your component.
+
+For Example, the msg types for a  login form component could look like this:
+
+    type MsgIn
+        = EmailFieldChanged String
+        | PasswordFieldChanged String
+        | SubmitbuttonClicked
+
+    type MsgOut
+        = FormWasSubmitted
+            { email : String
+            , password : String
+            }
+
+From the system's perspective, this is all you need to care about. This
+is the public API for the component.
+
+The normal output tuple from the `init` and `update` functions are replaced with
+a 3-Tuple:
+
+    ( Model, List MsgOut, Cmd MsgIn )
+
+## UI Component
+
+A UI-component is very similar in concept to a Browser.element program.
 
 @docs UI
 
 ## Service Component
 
+The service component does not have any view function. Remember `Platform.worker`?
+
 @docs Service
 
 ## Layout Component
 
+A layout component can render other components using their PID as a reference.
+The difference comparing to a UI component is the view function.
+
 @docs Layout
 
-## Helpers for the output Tuple
+## Helpers for the output 3-Tuple
 
-There is no native elm module for a Tuple with three entries.
+There is no native elm module for a Tuple with three arguments.
 
 @docs mapFirst
     , mapSecond
+    , mapThird
     , andThen
     , addOutMsg
     , addCmd
@@ -44,7 +86,11 @@ There is no native elm module for a Tuple with three entries.
 
 ## Helper for Queue
 
-@docs addToQueue
+Sometimes you'd want to put messages in a queue. Maybe your
+component is in a state where it can't process them at this point, eg. an InitState.
+
+@docs Queue
+    , addToQueue
     , runQueue
 -}
 import Html exposing (Html)
@@ -63,7 +109,6 @@ type alias PID =
 
 {-| Service Component Type
 
-A Service Component does not have any view function.
 -}
 type alias Service model msgIn msgOut =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
@@ -75,7 +120,11 @@ type alias Service model msgIn msgOut =
 
 {-| UI Component Type
 
-A UI Component is similar to a Browser.element program.
+- **init**: Is called everytime the component is instantiated.
+- **update**: When the component recieves a message.
+- **kill**: Is called when the component is no longer needed.
+- **subs**: Subscriptions.
+
 -}
 type alias UI model msgIn msgOut =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
@@ -88,9 +137,19 @@ type alias UI model msgIn msgOut =
 
 {-| Layout Component Type
 
-A Layout Component can render other components using
-their PID.
-It differs from a UI component only on its `view` function.
+The `view` function of a layout component:
+
+    view : (MsgIn -> msg) -> Model -> (PID -> Html msg) -> Html msg
+    view toSelf model renderPID =
+        div
+            []
+            [ renderPID model.child
+            , button [ onClick (toSelf ButtonWasClicked) ] [ text "Button!" ]
+            ]
+
+As you can see, the output type of the `view` function is `Html msg`. This is
+necessary to allow components to be composed. What would the return type be on
+`renderPID` if they were not mapped to the same type?
 -}
 type alias Layout model msgIn msgOut msg =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
@@ -103,8 +162,17 @@ type alias Layout model msgIn msgOut msg =
 
 {-| Run a series of updates on the model
 
-The msgOut's and Cmd's will be appended using `System.batch` and 
+-}
+type Queue msgIn =
+    Queue (List msgIn)
+
+{-| Run a series of updates on the model
+
+The msgOut's and Cmd's will be composed using `System.batch` and 
 `Cmd.batch`.
+
+    ( model, [], Cmd.none )
+        |> Component.andThen doSomethingWithModel
 -}
 andThen :
     (model -> ( model, List msgOut, Cmd msgIn ))
@@ -124,32 +192,44 @@ andThen fn ( m0, out0, cmd0 ) =
     )
 
 
-{-| Map the Model
+{-| Map the first argument (Model).
 
 -}
-mapFirst : (a -> b) -> ( a, x, y ) -> ( b, x, y )
+mapFirst : (input -> out) -> ( input, x, y ) -> ( out, x, y )
 mapFirst fn ( a, x, y ) =
     ( fn a, x, y )
 
 
-{-| Map msgOut
+{-| Map the second argument (List MsgOut).
 
 -}
-mapSecond : (a -> b) -> ( x, a, y ) -> ( x, b, y )
+mapSecond : (input -> out) -> ( x, input, y ) -> ( x, out, y )
 mapSecond fn ( x, a, y ) =
     ( x, fn a, y )
 
 
-{-| Add an out message to the list.
+{-| Map the third argument (Cmd).
 
+-}
+mapThird : (input -> out) -> ( x, y, input ) -> ( x, y, out )
+mapThird fn ( x, y, a ) =
+    ( x, y, fn a )
+
+
+{-| Add an out message to the output 3-Tuple.
+
+    ( model, [], Cmd.none )
+        |> Component.addOutMsg SomeOutMsg
 -}
 addOutMsg : msg -> ( x, List msg, y ) -> ( x, List msg, y )
 addOutMsg msg ( x, list, y ) =
     ( x, msg :: list, y )
 
 
-{-| Add a Cmd to the list.
+{-| Add a Cmd to the output 3-Tuple.
 
+    ( model, [], Cmd.none )
+        |> Component.addCmd cmd
 -}
 addCmd : Cmd msg -> ( x, y, Cmd msg ) -> ( x, y, Cmd msg )
 addCmd cmd1 ( x, y, cmd0 ) =
@@ -165,7 +245,7 @@ toCmd msg =
         (Task.succeed msg)
 
 
-{-| Convert a msg to Cmd with a timeout.
+{-| Convert a msg to Cmd with a timeout in milliseconds.
 
 -}
 toCmdWithDelay : Float -> msg -> Cmd msg
@@ -176,15 +256,18 @@ toCmdWithDelay delay msg =
         )
 
 
-{-| Run the queue and compose all output.
+{-| Run the `update` function on all messages in the queue
+and compose all output.
 
+    ( model, [], Cmd.none )
+        |> Component.runQueue queue update
 -}
 runQueue :
-    List msgIn
+    Queue msgIn
     -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, List msgOut, Cmd msgIn )
-runQueue queuedMsgs update initial =
+runQueue (Queue queuedMsgs) update initial =
     List.foldr
         (\qMsg triplet -> andThen (update qMsg) triplet)
         initial
@@ -193,7 +276,11 @@ runQueue queuedMsgs update initial =
 
 {-| Add a msg to the queue
 
+    { model
+        | queue = Component.addToQueue msgIn model.queue
+    }
 -}
-addToQueue : msgIn -> List msgIn -> List msgIn
-addToQueue msg queue =
+addToQueue : msgIn -> Queue msgIn -> Queue msgIn
+addToQueue msg (Queue queue) =
     msg :: queue
+        |> Queue
