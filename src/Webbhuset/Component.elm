@@ -10,6 +10,8 @@ module Webbhuset.Component exposing
     , mapFirst
     , mapSecond
     , runQueue
+    , toCmd
+    , toCmdWithDelay
     )
 
 {-| Build Components
@@ -37,6 +39,8 @@ There is no native elm module for a Tuple with three entries.
     , andThen
     , addOutMsg
     , addCmd
+    , toCmd
+    , toCmdWithDelay
 
 ## Helper for Queue
 
@@ -46,6 +50,8 @@ There is no native elm module for a Tuple with three entries.
 import Html exposing (Html)
 import Html.Lazy as Html
 import Webbhuset.Internal.PID as PID
+import Task
+import Process
 
 
 {-| A PID is an identifier for a Process.
@@ -148,6 +154,26 @@ addOutMsg msg ( x, list, y ) =
 addCmd : Cmd msg -> ( x, y, Cmd msg ) -> ( x, y, Cmd msg )
 addCmd cmd1 ( x, y, cmd0 ) =
     ( x, y, Cmd.batch [ cmd0, cmd1 ] )
+
+
+{-| Convert a msg to Cmd.
+
+-}
+toCmd : msg -> Cmd msg
+toCmd msg =
+    Task.perform identity
+        (Task.succeed msg)
+
+
+{-| Convert a msg to Cmd with a timeout.
+
+-}
+toCmdWithDelay : Float -> msg -> Cmd msg
+toCmdWithDelay delay msg =
+    Task.perform identity
+        (Process.sleep delay
+            |> Task.andThen (\_ -> Task.succeed msg)
+        )
 
 
 {-| Run the queue and compose all output.
