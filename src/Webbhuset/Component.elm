@@ -22,6 +22,9 @@ module Webbhuset.Component exposing
 
 # Components
 
+A component is a independent part in the system and has a single responsibility. They
+can not import other components.
+
 Components are like normal elm programs. They have their own
 model, they can do commands and subscriptions. The difference is
 that they have out messages.
@@ -160,7 +163,7 @@ type alias Layout model msgIn msgOut msg =
     }
 
 
-{-| Run a series of updates on the model
+{-| Store messages in a queue.
 
 -}
 type Queue msgIn =

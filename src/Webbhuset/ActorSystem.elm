@@ -1,7 +1,7 @@
 module Webbhuset.ActorSystem exposing
     ( AppliedActor
     , Model
-    , SysMsg(..)
+    , SysMsg
     , PID
     , application
     , addView
@@ -16,7 +16,7 @@ module Webbhuset.ActorSystem exposing
     , spawnSingleton
     )
 
-{-| Actor System
+{-|
 
 @docs PID
 
@@ -56,7 +56,7 @@ import List.Extra as List
 import Random
 import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
-import Webbhuset.Internal.Control as Control exposing (Control(..))
+import Webbhuset.Internal.Msg as Msg exposing (Msg(..), Control(..))
 
 
 {-| A PID is an identifier for a Process.
@@ -70,14 +70,12 @@ type alias PID =
 -- Ctrl
 
 
-{-| Your Elm Program will have this as its SysMsg type.
+{-| Your Elm Program will have this as its Msg type.
 
 -}
-type SysMsg name appMsg
-    = None
-    | AppMsg appMsg
-    | Ctrl (Control name (SysMsg name appMsg))
-    | Init (SysMsg name appMsg) String
+type alias SysMsg name appMsg =
+    Msg name appMsg
+
 
 
 {-| Don't send anything.
@@ -169,7 +167,10 @@ addView pid =
 {-| The Global Model
 
 -}
-type alias Model name appModel =
+type Model name appModel =
+    Model (ModelRecord name appModel)
+
+type alias ModelRecord name appModel =
     { instances : Dict Int appModel
     , lastPID : Int
     , prefix : String
@@ -265,17 +266,17 @@ application impl =
 
 initElement : ElementImpl flags name appModel appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initElement impl flags =
-    Tuple.pair
-        { instances = Dict.empty
-        , lastPID = 100
-        , prefix = ""
-        , singleton = []
-        , views = []
-        }
-        (Random.generate
-            (Init (impl.init flags))
-            prefixGenerator
-        )
+    ( { instances = Dict.empty
+      , lastPID = 100
+      , prefix = ""
+      , singleton = []
+      , views = []
+      }
+          |> Model
+    , Random.generate
+          (Init (impl.init flags))
+          prefixGenerator
+    )
 
 
 initApplication :
@@ -285,17 +286,17 @@ initApplication :
     -> Nav.Key
     -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initApplication impl flags url key =
-    Tuple.pair
-        { instances = Dict.empty
-        , lastPID = 100
-        , prefix = ""
-        , singleton = []
-        , views = []
-        }
-        (Random.generate
-            (Init (impl.init flags url key))
-            prefixGenerator
-        )
+    ( { instances = Dict.empty
+      , lastPID = 100
+      , prefix = ""
+      , singleton = []
+      , views = []
+      }
+        |> Model
+    , Random.generate
+        (Init (impl.init flags url key))
+        prefixGenerator
+    )
 
 
 prefixGenerator : Random.Generator String
@@ -319,17 +320,21 @@ prefixGenerator =
 
 
 update : Impl name appModel appMsg a -> SysMsg name appMsg -> Model name appModel -> ( Model name appModel, Cmd (SysMsg name appMsg) )
-update impl msg model =
+update impl msg ((Model model) as m) =
     case msg of
         None ->
-            ( model, Cmd.none )
+            ( m, Cmd.none )
 
         AppMsg _ ->
-            ( model, Cmd.none )
+            ( m, Cmd.none )
 
         Init initMsg prefix ->
             { model | prefix = prefix }
+                |> Model
                 |> update impl initMsg
+
+        UnmappedMsg appMsg ->
+            ( m, Cmd.none )
 
         Ctrl ctrlMsg ->
             case ctrlMsg of
@@ -339,10 +344,10 @@ update impl msg model =
                             (\batchMsg previous ->
                                 cmdAndThen (update impl batchMsg) previous
                             )
-                            ( model, Cmd.none )
+                            ( m, Cmd.none )
 
                 Cmd cmd ->
-                    ( model, cmd )
+                    ( m, cmd )
 
                 SendToPID pid message ->
                     case getProcess pid model of
@@ -350,20 +355,20 @@ update impl msg model =
                             let
                                 ( m2, newMsg ) =
                                     .update (impl.apply appModel) message pid
-                                        |> Tuple.mapFirst (updateInstanceIn model pid)
+                                        |> Tuple.mapFirst (updateInstanceIn model pid >> Model)
                             in
                             update impl newMsg m2
 
                         Nothing ->
-                            ( model, Cmd.none )
+                            ( m, Cmd.none )
 
                 SendToSingleton name message ->
                     case findSingletonPID name model of
                         Just pid ->
-                            update impl (sendToPID pid message) model
+                            update impl (sendToPID pid message) m
 
                         Nothing ->
-                            update impl (spawnSingleton name) model
+                            update impl (spawnSingleton name) m
                                 |> cmdAndThen (update impl msg)
 
                 Spawn name replyMsg ->
@@ -374,7 +379,7 @@ update impl msg model =
                         ( m3, newMsg ) =
                             spawn_ impl name pid m2
                     in
-                    update impl newMsg m3
+                    update impl newMsg (Model m3)
                         |> cmdAndThen (update impl (replyMsg pid))
 
                 Kill ((PID _ pid) as p) ->
@@ -385,10 +390,11 @@ update impl msg model =
                                     .kill (impl.apply appModel) p
                             in
                             { model | instances = Dict.remove pid model.instances }
+                                |> Model
                                 |> update impl componentLastWords
 
                         Nothing ->
-                            ( model, Cmd.none )
+                            ( m, Cmd.none )
 
                 SpawnSingleton name ->
                     let
@@ -399,50 +405,51 @@ update impl msg model =
                             appendSingleton name pid m2
                                 |> spawn_ impl name pid
                     in
-                    update impl newMsg m3
+                    update impl newMsg (Model m3)
 
                 AddView pid ->
                     ( { model | views = pid :: model.views }
+                        |> Model
                     , Cmd.none
                     )
 
 
-spawn_ : Impl name appModel appMsg a -> name -> PID -> Model name appModel -> ( Model name appModel, SysMsg name appMsg )
+spawn_ : Impl name appModel appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )
 spawn_ impl name pid model =
     impl.spawn name pid
         |> Tuple.mapFirst (updateInstanceIn model pid)
 
 
-newPID : Model name appModel -> ( Model name appModel, PID )
+newPID : ModelRecord name appModel -> ( ModelRecord name appModel, PID )
 newPID model =
     model.lastPID
         |> PID model.prefix
         |> Tuple.pair { model | lastPID = 1 + model.lastPID }
 
 
-getProcess : PID -> Model name appModel -> Maybe appModel
+getProcess : PID -> ModelRecord name appModel -> Maybe appModel
 getProcess (PID _ pid) model =
     Dict.get pid model.instances
 
 
-getInstanceFrom : Model name appModel -> PID -> Maybe appModel
+getInstanceFrom : ModelRecord name appModel -> PID -> Maybe appModel
 getInstanceFrom model (PID _ pid) =
     Dict.get pid model.instances
 
 
-updateInstanceIn : Model name appModel -> PID -> appModel -> Model name appModel
+updateInstanceIn : ModelRecord name appModel -> PID -> appModel -> ModelRecord name appModel
 updateInstanceIn model (PID _ pid) appModel =
     { model | instances = Dict.insert pid appModel model.instances }
 
 
-appendSingleton : name -> PID -> Model name appModel -> Model name appModel
+appendSingleton : name -> PID -> ModelRecord name appModel -> ModelRecord name appModel
 appendSingleton name pid model =
     { model
         | singleton = ( name, pid ) :: model.singleton
     }
 
 
-findSingletonPID : name -> Model name appModel -> Maybe PID
+findSingletonPID : name -> ModelRecord name appModel -> Maybe PID
 findSingletonPID name model =
     model.singleton
         |> List.find (\( a, _ ) -> a == name)
@@ -450,7 +457,7 @@ findSingletonPID name model =
 
 
 subscriptions : Impl name appModel appMsg a -> Model name appModel -> Sub (SysMsg name appMsg)
-subscriptions impl model =
+subscriptions impl (Model model) =
     model.instances
         |> Dict.foldl
             (\pid appModel subs ->
@@ -469,7 +476,7 @@ subscriptions impl model =
 
 
 view : Impl name appModel appMsg a -> Model name appModel -> Html (SysMsg name appMsg)
-view impl model =
+view impl (Model model) =
     model.views
         ++ List.map Tuple.second model.singleton
         |> List.map (renderPID (\p -> .view (impl.apply p)) model.instances)

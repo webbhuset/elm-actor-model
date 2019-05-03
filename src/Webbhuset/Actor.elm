@@ -9,6 +9,13 @@ module Webbhuset.Actor exposing
 
 {-|
 
+# Actor
+
+When a component is incorporated in a system it becomes an Actor. The actor module
+implements the connections to the other components in the system.
+In practice that means mapping and sending the component's out messages to other
+actors in the system.
+
 @docs PID
 
 ## Create Actors from Components
@@ -25,7 +32,7 @@ import Html exposing (Html)
 import Html.Lazy as Html
 import Webbhuset.ActorSystem as System exposing (SysMsg)
 import Webbhuset.Component as Component
-import Webbhuset.Internal.Control as Control exposing (Control(..))
+import Webbhuset.Internal.Msg as Msg exposing (Control(..))
 import Webbhuset.Internal.PID as PID
 
 {-| A PID is an identifier for a Process.
@@ -67,7 +74,7 @@ applyModel actor model =
 fromLayout :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , fromApp : appMsg -> Maybe msgIn
     , toApp : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.Layout compModel msgIn msgOut (SysMsg name appMsg)
@@ -105,7 +112,7 @@ wrapKill toGlobal impl model pid =
 fromUI :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , fromApp : appMsg -> Maybe msgIn
     , toApp : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.UI compModel msgIn msgOut
@@ -139,7 +146,7 @@ wrapView view model toSelf pid =
 fromService :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : SysMsg name appMsg -> Maybe msgIn
+    , fromApp : appMsg -> Maybe msgIn
     , toApp : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.Service compModel msgIn msgOut
@@ -199,8 +206,8 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
                         >> System.sendToPID pid
                     )
                     cmd
-                    |> Control.Cmd
-                    |> System.Ctrl
+                    |> Msg.Cmd
+                    |> Msg.Ctrl
 
         msg =
             List.map (toGlobal pid) msgsOut
@@ -215,16 +222,21 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
 wrapRecv :
     (compModel -> appModel)
     -> (msgIn -> msg)
-    -> (SysMsg name msg -> Maybe msgIn)
+    -> (msg -> Maybe msgIn)
     -> (PID -> msgOut -> SysMsg name msg)
     -> (msgIn -> compModel -> ( compModel, List msgOut, Cmd msgIn ))
     -> (compModel -> SysMsg name msg -> PID -> ( appModel, SysMsg name msg ))
 wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
-    case fromGlobal msg of
-        Just msgIn ->
-            update msgIn model
-                |> wrapTriple toSelf toGlobal pid
-                |> Tuple.mapFirst toProcess
+    case msg of
+        Msg.AppMsg appMsg ->
+            case fromGlobal appMsg of
+                Just msgIn ->
+                    update msgIn model
+                        |> wrapTriple toSelf toGlobal pid
+                        |> Tuple.mapFirst toProcess
 
-        Nothing ->
+                Nothing ->
+                    ( toProcess model, Msg.UnmappedMsg appMsg )
+
+        _ ->
             ( toProcess model, System.none )

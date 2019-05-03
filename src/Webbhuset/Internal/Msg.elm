@@ -1,6 +1,14 @@
-module Webbhuset.Internal.Control exposing (..)
+module Webbhuset.Internal.Msg exposing (..)
 
 import Webbhuset.Internal.PID as PID exposing (PID(..))
+
+
+type Msg name appMsg
+    = None
+    | AppMsg appMsg
+    | UnmappedMsg appMsg
+    | Ctrl (Control name (Msg name appMsg))
+    | Init (Msg name appMsg) String
 
 
 type Control actor msg

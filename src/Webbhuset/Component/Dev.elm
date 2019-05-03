@@ -83,10 +83,10 @@ initApp title _ =
         ]
 
 
-testedMapIn : Msg msgIn -> Maybe msgIn
-testedMapIn globalMsg =
-    case globalMsg of
-        System.AppMsg (ComponentMsg msg) ->
+testedMapIn : AppMsg msgIn -> Maybe msgIn
+testedMapIn appMsg =
+    case appMsg of
+        ComponentMsg msg ->
             Just msg
 
         _ ->
@@ -162,10 +162,10 @@ actor tests =
         (component tests)
 
 
-mapIn : Msg msgIn -> Maybe MsgIn
-mapIn globalMsg =
-    case globalMsg of
-        System.AppMsg (DevMsg msg) ->
+mapIn : AppMsg msgIn -> Maybe MsgIn
+mapIn appMsg =
+    case appMsg of
+        DevMsg msg ->
             Just msg
 
         _ ->
