@@ -1,12 +1,20 @@
-module Webbhuset.Component.Dev exposing
-    ( TestProgram
+module Webbhuset.Component.Sandbox exposing
+    ( SandboxProgram
     , TestCase
     , testUI
     )
 
-{-| Develop Components
+{-|
 
-@docs TestProgram, TestCase, testUI
+# Sandbox
+
+The sandbox module is helpful when developing components. It lets you
+run the component using `elm reactor` outside the system and define several test cases.
+
+@docs SandboxProgram
+
+@docs TestCase
+@docs testUI
 
 -}
 
@@ -31,12 +39,14 @@ type alias Model m msgIn =
 {-| The Program type of your main function.
 
 -}
-type alias TestProgram model msgIn =
+type alias SandboxProgram model msgIn =
     Program () (Model model msgIn) (Msg msgIn)
 
 
 {-| A test case for the Component
 
+Each test case contains a list of in-messages that will be sent to the component
+when the sandbox is started.
 -}
 type alias TestCase msgIn =
     { title : String
@@ -47,7 +57,29 @@ type alias TestCase msgIn =
 
 {-| Wrap a component in a sandbox application.
 
-This will log all messages to help with development.
+This will render each test case and log all messages.
+Create a test file with a `main` function where you declare all
+test cases.
+
+    import Component.Form as Form
+    import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
+
+    main : SandboxProgram Form.Model Form.MsgIn
+    main =
+        Sandbox.testUI
+            Form.component
+            "Form Component"
+            [ Sandbox.TestCase
+                "Empty form"
+                "Submit-button should be disabled"
+                [
+                ]
+            , Sandbox.TestCase
+                "Form with Errors"
+                "You should see an error message"
+                [ Form.ErrorMsg "Error message"
+                ]
+            ]
 
 -}
 testUI :
@@ -55,7 +87,7 @@ testUI :
     , component : Component.UI model msgIn msgOut
     , cases : List (TestCase msgIn)
     }
-    -> TestProgram model msgIn
+    -> SandboxProgram model msgIn
 testUI args =
     let
         testedActor =

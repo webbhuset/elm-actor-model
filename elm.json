@@ -7,7 +7,7 @@
     "exposed-modules": {
         "Components": [
             "Webbhuset.Component",
-            "Webbhuset.Component.Dev",
+            "Webbhuset.Component.Sandbox",
             "Webbhuset.PID",
             "Webbhuset.PID.Set"
         ],
