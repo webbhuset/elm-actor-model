@@ -26,8 +26,8 @@ A component is a independent part in the system and has a single responsibility.
 can not import other components.
 
 Components are like normal elm programs. They have their own
-model, they can do commands and subscriptions. The difference is
-that they have out messages.
+model, they can do commands and subscriptions. In addition to that
+they also have out messages.
 
 This means you will have two `Msg` types: `MsgIn` and `MsgOut`. MsgIn
 is conceptually the same as your normal `Msg` type would be.
