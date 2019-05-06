@@ -83,7 +83,6 @@ deploy-docs:
         --deploy-type       site
         --target            sandbox
         --root-dir          /var/www/elm-doc/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}
-        --symlink-subdir    build
         --project-type      elm
         --project           ${CI_PROJECT_NAME}
         --namespace         ${CI_PROJECT_NAMESPACE}
