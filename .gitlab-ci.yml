@@ -1,6 +1,8 @@
 stages:
   - compile
   - docs
+  - prepare
+  - deploy
 
 
 ###########
@@ -29,6 +31,68 @@ compile-docs:
   script:
     - rm -rf ./elm-stuff/
     - make docs
+    - tar -czf ${CI_COMMIT_SHA}.tar.gz docs.json README.md
+    - echo "export BUILD_JOB_ID=${CI_JOB_ID}" > variables
+  artifacts:
+    expire_in: 1 day
+    name: $CI_COMMIT_SHA
+    when: on_success
+    paths:
+      - ./$CI_COMMIT_SHA.tar.gz
+      - ./variables
+  only:
+    - master
+    - /^\d*-.*/
+
+
+prepare-docs:
+  stage: prepare
+  tags:
+    - shell
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - source variables
+  script:
+    - ssh -i ~/.ssh/id_rsa -t deploy@saltmaster2.webbhuset.com "sudo /root/deploy/deploy.sh
+        --action        prepare
+        --deploy-type   site
+        --target        sandbox
+        --root-dir      /var/www/elm-doc/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}
+        --project-type  elm
+        --project       ${CI_PROJECT_NAME}
+        --namespace     ${CI_PROJECT_NAMESPACE}
+        --commit        ${CI_COMMIT_SHA}
+        --build         ${BUILD_JOB_ID}"
+  only:
+    - master
+    - /^\d*-.*/
+
+
+deploy-docs:
+  stage: deploy
+  tags:
+    - shell
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - source variables
+  script:
+    - ssh -i ~/.ssh/id_rsa -t deploy@saltmaster2.webbhuset.com "sudo /root/deploy/deploy.sh
+        --action            deploy
+        --deploy-type       site
+        --target            sandbox
+        --root-dir          /var/www/elm-doc/${CI_PROJECT_NAME}/${CI_COMMIT_REF_SLUG}
+        --symlink-subdir    build
+        --project-type      elm
+        --project           ${CI_PROJECT_NAME}
+        --namespace         ${CI_PROJECT_NAMESPACE}
+        --commit            ${CI_COMMIT_SHA}
+        --build             ${BUILD_JOB_ID}"
+  dependencies: []
+  environment:
+    name: elm-$CI_COMMIT_REF_SLUG
+    url: https://$CI_PROJECT_NAME-$CI_COMMIT_REF_SLUG.elm-doc.webbhuset.com/
   only:
     - master
     - /^\d*-.*/
