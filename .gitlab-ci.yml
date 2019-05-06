@@ -92,7 +92,7 @@ deploy-docs:
   dependencies: []
   environment:
     name: docs-$CI_COMMIT_REF_SLUG
-    url: http://elm-doc.webbhuset.com/?repo=$CI_PROJECT_NAME&version=$CI_COMMIT_REF_SLUG
+    url: http://elm-doc.stage.webbhuset.com/?repo=$CI_PROJECT_NAME&version=$CI_COMMIT_REF_SLUG
   only:
     - master
     - /^\d*-.*/
