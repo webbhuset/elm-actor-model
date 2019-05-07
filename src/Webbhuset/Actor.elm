@@ -1,7 +1,6 @@
 module Webbhuset.Actor exposing
     ( Actor
     , PID
-    , applyModel
     , fromLayout
     , fromService
     , fromUI
@@ -24,16 +23,18 @@ actors in the system.
 
 ## Bootstrap
 
-@docs Actor, applyModel
+@docs Actor
 
 -}
 import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
-import Webbhuset.ActorSystem as System exposing (SysMsg)
 import Webbhuset.Component as Component
 import Webbhuset.Internal.Msg as Msg exposing (Control(..))
 import Webbhuset.Internal.PID as PID
+
+type alias SysMsg name appMsg =
+    Msg.Msg name appMsg
 
 {-| A PID is an identifier for a Process.
 
@@ -55,18 +56,6 @@ type alias Actor compModel appModel msg =
     }
 
 
-{-| Apply the compModel to an actor.
-
--}
-applyModel : Actor compModel appModel msg -> compModel -> System.AppliedActor appModel msg
-applyModel actor model =
-    { init = actor.init
-    , update = actor.update model
-    , view = actor.view model
-    , kill = actor.kill model
-    , subs = actor.subs model
-    }
-
 
 {-| Create an actor from a Layout Component
 
@@ -87,13 +76,14 @@ fromLayout args component =
                 |> Tuple.mapFirst args.wrapModel
     , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
     , view =
-        \s pid ->
+        \model pid ->
             component.view
                 (args.wrapMsg
-                    >> System.toAppMsg
-                    >> System.sendToPID pid
+                    >> Msg.AppMsg
+                    >> Msg.SendToPID pid
+                    >> Msg.Ctrl
                 )
-                s
+                model
     , kill = wrapKill args.toApp component.kill
     , subs = wrapSub args.wrapMsg component
     }
@@ -102,7 +92,8 @@ fromLayout args component =
 wrapKill toGlobal impl model pid =
     impl model
         |> List.map (toGlobal pid)
-        |> System.batch
+        |> Msg.Batch
+        |> Msg.Ctrl
 
 
 {-| Create an actor from a UI Component
@@ -124,7 +115,7 @@ fromUI args component =
                 |> wrapTriple args.wrapMsg args.toApp pid
                 |> Tuple.mapFirst args.wrapModel
     , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
-    , view = \s pid _ -> Html.lazy4 wrapView component.view s args.wrapMsg pid
+    , view = \model pid _ -> Html.lazy4 wrapView component.view model args.wrapMsg pid
     , kill = wrapKill args.toApp component.kill
     , subs = wrapSub args.wrapMsg component
     }
@@ -135,8 +126,9 @@ wrapView view model toSelf pid =
     view model
         |> Html.map
             (toSelf
-                >> System.toAppMsg
-                >> System.sendToPID pid
+                >> Msg.AppMsg
+                >> Msg.SendToPID pid
+                >> Msg.Ctrl
             )
 
 
@@ -181,8 +173,9 @@ wrapSub toSelf impl model pid =
     else
         Sub.map
             (toSelf
-                >> System.toAppMsg
-                >> System.sendToPID pid
+                >> Msg.AppMsg
+                >> Msg.SendToPID pid
+                >> Msg.Ctrl
             )
             sub
 
@@ -197,13 +190,14 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
     let
         msgCmd =
             if cmd == Cmd.none then
-                System.none
+                Msg.None
 
             else
                 Cmd.map
                     (toSelf
-                        >> System.toAppMsg
-                        >> System.sendToPID pid
+                        >> Msg.AppMsg
+                        >> Msg.SendToPID pid
+                        >> Msg.Ctrl
                     )
                     cmd
                     |> Msg.Cmd
@@ -212,7 +206,8 @@ wrapTriple toSelf toGlobal pid ( model, msgsOut, cmd ) =
         msg =
             List.map (toGlobal pid) msgsOut
                 |> (::) msgCmd
-                |> System.batch
+                |> Msg.Batch
+                |> Msg.Ctrl
     in
     ( model
     , msg
@@ -239,4 +234,4 @@ wrapRecv toProcess toSelf fromGlobal toGlobal update model msg pid =
                     ( toProcess model, Msg.UnmappedMsg appMsg )
 
         _ ->
-            ( toProcess model, System.none )
+            ( toProcess model, Msg.None )

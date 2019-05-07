@@ -173,10 +173,10 @@ applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msg
 applyModel tests testedActor process =
     case process of
         P_Dev model ->
-            Actor.applyModel (actor tests) model
+            System.applyModel (actor tests) model
 
         P_Component model ->
-            Actor.applyModel testedActor model
+            System.applyModel testedActor model
 
 
 

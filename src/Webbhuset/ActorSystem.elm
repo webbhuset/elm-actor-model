@@ -3,8 +3,9 @@ module Webbhuset.ActorSystem exposing
     , Model
     , SysMsg
     , PID
-    , application
     , addView
+    , application
+    , applyModel
     , batch
     , element
     , kill
@@ -46,6 +47,7 @@ Don't worry about these for now.
 @docs AppliedActor
     , Model
     , SysMsg
+    , applyModel
 -}
 
 import Browser
@@ -57,6 +59,7 @@ import Random
 import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Webbhuset.Internal.Msg as Msg exposing (Msg(..), Control(..))
+import Webbhuset.Actor as Actor exposing (Actor)
 
 
 {-| A PID is an identifier for a Process.
@@ -161,14 +164,12 @@ addView pid =
 
 
 
--- Sys
-
-
 {-| The Global Model
 
 -}
 type Model name appModel =
     Model (ModelRecord name appModel)
+
 
 type alias ModelRecord name appModel =
     { instances : Dict Int appModel
@@ -219,6 +220,18 @@ type alias ApplicationImpl flags name appModel appMsg =
     , onUrlChange : Url -> SysMsg name appMsg
     }
 
+
+{-| Apply the compModel to an actor.
+
+-}
+applyModel : Actor compModel appModel msg -> compModel -> AppliedActor appModel msg
+applyModel actor model =
+    { init = actor.init
+    , update = actor.update model
+    , view = actor.view model
+    , kill = actor.kill model
+    , subs = actor.subs model
+    }
 
 {-| Create a [Browser.element] from your Actor System
 
