@@ -18,28 +18,33 @@ actors in the system.
 Here is an example of wrapping a login form component to an actor in a system.
 
     -- This is the global model for the System.
+    module AppModel exposing (..)
 
-    type Model
-        = FormModel LoginForm.Model
+    type AppModel
+        = LoginFormModel LoginForm.Model
         | OtherComponet ...
 
-    -- This is the appMsg type for the System.
+    -- This is the global appMsg type for the System.
+    module AppMsg exposing (..)
 
     type AppMsg
         = FormMsg LoginForm.MsgIn
+        | AuthServiceMsg AuthService.MsgIn
         | OtherComponent ...
 
     -- in Actor.LoginForm
 
     import Component.LoginForm as LoginForm
     import Component.AuthService as AuthService
+    import AppMsg exposing (AppMsg)
+    import AppModel exposing (AppModel)
 
 
-    actor : Actor LoginForm.Model Model AppMsg
+    actor : Actor LoginForm.Model AppModel AppMsg
     actor =
         Actor.fromUI
-            { wrapModel = FormModel
-            , wrapMsg = FormMsg
+            { wrapModel = AppModel.LoginFormModel
+            , wrapMsg = AppMsg.FormMsg
             , mapIn = mapFormIn
             , mapOut = mapFormOut
             }
@@ -49,7 +54,7 @@ Here is an example of wrapping a login form component to an actor in a system.
     mapFormIn : AppMsg -> Maybe LoginForm.MsgIn
     mapFormIn appMsg =
         case appMsg of
-            FormMsg formMsg ->
+            AppMsg.FormMsg formMsg ->
                 Just formMsg
 
             _ ->
@@ -61,6 +66,7 @@ Here is an example of wrapping a login form component to an actor in a system.
         case formMsg of
             LoginForm.Submit user password ->
                 AuthService.Login user password self
+                    |> AppMsg.AuthServiceMsg
                     |> System.toAppMsg
                     |> System.sendToSingleton AuthService
 
