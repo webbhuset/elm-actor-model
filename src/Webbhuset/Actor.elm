@@ -17,62 +17,70 @@ actors in the system.
 
 Here is an example of wrapping a login form component to an actor in a system.
 
-    -- This is the global model for the System.
-    module AppModel exposing (..)
 
-    type AppModel
-        = LoginFormModel LoginForm.Model
-        | OtherComponet ...
+This is the global model for the System:
+```
+module AppModel exposing (..)
 
-    -- This is the global appMsg type for the System.
-    module AppMsg exposing (..)
+type AppModel
+    = LoginFormModel LoginForm.Model
+    | OtherComponent ...
+```
 
-    type AppMsg
-        = FormMsg LoginForm.MsgIn
-        | AuthServiceMsg AuthService.MsgIn
-        | OtherComponent ...
+This is the global appMsg type for the System:
+```
+module AppMsg exposing (..)
 
-    -- This is the login form actor.
-    module Actor.LoginForm exposing (..)
+type AppMsg
+    = FormMsg LoginForm.MsgIn
+    | AuthServiceMsg AuthService.MsgIn
+    | OtherComponent ...
 
-    import Webbhuset.ActorSystem as System
-    import Webbhuset.Actor as Actor exposing (Actor)
-    import Component.LoginForm as LoginForm
-    import Component.AuthService as AuthService
-    import AppMsg exposing (AppMsg)
-    import AppModel exposing (AppModel)
+```
 
+This is the login form actor:
+```
+module Actor.LoginForm exposing (..)
 
-    actor : Actor LoginForm.Model AppModel AppMsg
-    actor =
-        Actor.fromUI
-            { wrapModel = AppModel.LoginFormModel
-            , wrapMsg = AppMsg.FormMsg
-            , mapIn = mapFormIn
-            , mapOut = mapFormOut
-            }
-            LoginForm.component
+import Webbhuset.ActorSystem as System
+import Webbhuset.Actor as Actor exposing (Actor)
+import Component.LoginForm as LoginForm
+import Component.AuthService as AuthService
+import AppMsg exposing (AppMsg)
+import AppModel exposing (AppModel)
 
 
-    mapFormIn : AppMsg -> Maybe LoginForm.MsgIn
-    mapFormIn appMsg =
-        case appMsg of
-            AppMsg.FormMsg formMsg ->
-                Just formMsg
+actor : Actor LoginForm.Model AppModel AppMsg
+actor =
+    Actor.fromUI
+        { wrapModel = AppModel.LoginFormModel
+        , wrapMsg = AppMsg.FormMsg
+        , mapIn = mapFormIn
+        , mapOut = mapFormOut
+        }
+        LoginForm.component
 
-            _ ->
-                Nothing
+
+mapFormIn : AppMsg -> Maybe LoginForm.MsgIn
+mapFormIn appMsg =
+    case appMsg of
+        AppMsg.FormMsg formMsg ->
+            Just formMsg
+
+        _ ->
+            Nothing
 
 
-    mapFormOut : PID -> LoginForm.MsgOut -> System.SysMsg name AppMsg
-    mapFormOut self formMsg =
-        case formMsg of
-            LoginForm.Submit user password ->
-                AuthService.Login user password self
-                    |> AppMsg.AuthServiceMsg
-                    |> System.toAppMsg
-                    |> System.sendToSingleton AuthService
+mapFormOut : PID -> LoginForm.MsgOut -> System.SysMsg name AppMsg
+mapFormOut self formMsg =
+    case formMsg of
+        LoginForm.Submit user password ->
+            AuthService.Login user password self
+                |> AppMsg.AuthServiceMsg
+                |> System.toAppMsg
+                |> System.sendToSingleton AuthService
 
+```
 
 @docs PID
 

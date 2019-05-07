@@ -1,7 +1,7 @@
 {
     "type": "package",
     "name": "webbhuset/elm-actor-model",
-    "summary": "Framework for Component based systems using the actor model",
+    "summary": "Framework for Component based systems using the Actor Model",
     "license": "MIT",
     "version": "1.0.0",
     "exposed-modules": {
