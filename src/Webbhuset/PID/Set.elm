@@ -12,6 +12,11 @@ module Webbhuset.PID.Set exposing
 
 ## Set of PID
 
+Since PIDs are not comparable they can not be used with the Set in elm/core.
+
+When using an event/observer pattern in the actor model it is useful
+to gather PIDs that are observing an event in a Set.
+
 @docs Set
     , PID
     , empty
