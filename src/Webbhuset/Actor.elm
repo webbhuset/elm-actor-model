@@ -15,6 +15,56 @@ implements the connections to the other components in the system.
 In practice that means mapping and sending the component's out messages to other
 actors in the system.
 
+Here is an example of wrapping a login form component to an actor in a system.
+
+    -- This is the global model for the System.
+
+    type Model
+        = FormModel LoginForm.Model
+        | OtherComponet ...
+
+    -- This is the appMsg type for the System.
+
+    type AppMsg
+        = FormMsg LoginForm.MsgIn
+        | OtherComponent ...
+
+    -- in Actor.LoginForm
+
+    import Component.LoginForm as LoginForm
+    import Component.AuthService as AuthService
+
+
+    actor : Actor LoginForm.Model Model AppMsg
+    actor =
+        Actor.fromUI
+            { wrapModel = FormModel
+            , wrapMsg = FormMsg
+            , mapIn = mapFormIn
+            , mapOut = mapFormOut
+            }
+            LoginForm.component
+
+
+    mapFormIn : AppMsg -> Maybe LoginForm.MsgIn
+    mapFormIn appMsg =
+        case appMsg of
+            FormMsg formMsg ->
+                Just formMsg
+
+            _ ->
+                Nothing
+
+
+    mapFormOut : PID -> LoginForm.MsgOut -> System.SysMsg name AppMsg
+    mapFormOut self formMsg =
+        case formMsg of
+            LoginForm.Submit user password ->
+                AuthService.Login user password self
+                    |> System.toAppMsg
+                    |> System.sendToSingleton AuthService
+
+
 @docs PID
 
 ## Create Actors from Components
