@@ -32,8 +32,11 @@ Here is an example of wrapping a login form component to an actor in a system.
         | AuthServiceMsg AuthService.MsgIn
         | OtherComponent ...
 
-    -- in Actor.LoginForm
+    -- This is the login form actor.
+    module Actor.LoginForm exposing (..)
 
+    import Webbhuset.ActorSystem as System
+    import Webbhuset.Actor as Actor exposing (Actor)
     import Component.LoginForm as LoginForm
     import Component.AuthService as AuthService
     import AppMsg exposing (AppMsg)

@@ -127,8 +127,9 @@ type alias Service model msgIn msgOut =
 
 - **init**: Is called everytime the component is instantiated.
 - **update**: When the component recieves a message.
+- **view**: Is called when the app needs to re-render.
 - **kill**: Is called when the component is no longer needed.
-- **subs**: Subscriptions.
+- **subs**: Normal Elm Subscriptions.
 
 -}
 type alias UI model msgIn msgOut =
@@ -154,7 +155,7 @@ The `view` function of a layout component:
 
 The `view` function has three arguments:
 
-- `toSelf` is used to wrap all event-handlers from Html.Events.
+- `toSelf` is used to wrap all event-handlers from Html.Events
 - `renderPID` is used to render other components.
 
 As you can see, the output type of the `view` function is `Html msg`. This is
