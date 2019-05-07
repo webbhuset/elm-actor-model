@@ -7,6 +7,7 @@ module Webbhuset.Component exposing
     , addCmd
     , addOutMsg
     , addToQueue
+    , emptyQueue
     , andThen
     , mapFirst
     , mapSecond
@@ -93,6 +94,7 @@ Sometimes you'd want to put messages in a queue. Maybe your
 component is in a state where it can't process them at this point, eg. an InitState.
 
 @docs Queue
+    , emptyQueue
     , addToQueue
     , runQueue
 -}
@@ -257,6 +259,17 @@ toCmdWithDelay delay msg =
         (Process.sleep delay
             |> Task.andThen (\_ -> Task.succeed msg)
         )
+
+
+{-| Create an Empty Queue
+
+    { model
+        | queue = Component.emptyQueue
+    }
+-}
+emptyQueue : Queue msgIn
+emptyQueue =
+    Queue []
 
 
 {-| Run the `update` function on all messages in the queue
