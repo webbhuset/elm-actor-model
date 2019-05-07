@@ -152,6 +152,11 @@ The `view` function of a layout component:
             , button [ onClick (toSelf ButtonWasClicked) ] [ text "Button!" ]
             ]
 
+The `view` function has three arguments:
+
+- `toSelf` is used to wrap all event-handlers from Html.Events.
+- `renderPID` is used to render other components.
+
 As you can see, the output type of the `view` function is `Html msg`. This is
 necessary to allow components to be composed. What would the return type be on
 `renderPID` if they were not mapped to the same type?
