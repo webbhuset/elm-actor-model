@@ -63,8 +63,8 @@ type alias Actor compModel appModel msg =
 fromLayout :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : appMsg -> Maybe msgIn
-    , toApp : PID -> msgOut -> SysMsg name appMsg
+    , mapIn : appMsg -> Maybe msgIn
+    , mapOut : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.Layout compModel msgIn msgOut (SysMsg name appMsg)
     -> Actor compModel appModel (SysMsg name appMsg)
@@ -72,9 +72,9 @@ fromLayout args component =
     { init =
         \pid ->
             component.init pid
-                |> wrapTriple args.wrapMsg args.toApp pid
+                |> wrapTriple args.wrapMsg args.mapOut pid
                 |> Tuple.mapFirst args.wrapModel
-    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
+    , update = wrapRecv args.wrapModel args.wrapMsg args.mapIn args.mapOut component.update
     , view =
         \model pid ->
             component.view
@@ -84,7 +84,7 @@ fromLayout args component =
                     >> Msg.Ctrl
                 )
                 model
-    , kill = wrapKill args.toApp component.kill
+    , kill = wrapKill args.mapOut component.kill
     , subs = wrapSub args.wrapMsg component
     }
 
@@ -103,8 +103,8 @@ wrapKill toGlobal impl model pid =
 fromUI :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : appMsg -> Maybe msgIn
-    , toApp : PID -> msgOut -> SysMsg name appMsg
+    , mapIn : appMsg -> Maybe msgIn
+    , mapOut : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.UI compModel msgIn msgOut
     -> Actor compModel appModel (SysMsg name appMsg)
@@ -112,11 +112,11 @@ fromUI args component =
     { init =
         \pid ->
             component.init pid
-                |> wrapTriple args.wrapMsg args.toApp pid
+                |> wrapTriple args.wrapMsg args.mapOut pid
                 |> Tuple.mapFirst args.wrapModel
-    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp component.update
+    , update = wrapRecv args.wrapModel args.wrapMsg args.mapIn args.mapOut component.update
     , view = \model pid _ -> Html.lazy4 wrapView component.view model args.wrapMsg pid
-    , kill = wrapKill args.toApp component.kill
+    , kill = wrapKill args.mapOut component.kill
     , subs = wrapSub args.wrapMsg component
     }
 
@@ -138,8 +138,8 @@ wrapView view model toSelf pid =
 fromService :
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
-    , fromApp : appMsg -> Maybe msgIn
-    , toApp : PID -> msgOut -> SysMsg name appMsg
+    , mapIn : appMsg -> Maybe msgIn
+    , mapOut : PID -> msgOut -> SysMsg name appMsg
     }
     -> Component.Service compModel msgIn msgOut
     -> Actor compModel appModel (SysMsg name appMsg)
@@ -147,11 +147,11 @@ fromService args impl =
     { init =
         \pid ->
             impl.init pid
-                |> wrapTriple args.wrapMsg args.toApp pid
+                |> wrapTriple args.wrapMsg args.mapOut pid
                 |> Tuple.mapFirst args.wrapModel
-    , update = wrapRecv args.wrapModel args.wrapMsg args.fromApp args.toApp impl.update
+    , update = wrapRecv args.wrapModel args.wrapMsg args.mapIn args.mapOut impl.update
     , view = \_ _ _ -> Html.text ""
-    , kill = wrapKill args.toApp impl.kill
+    , kill = wrapKill args.mapOut impl.kill
     , subs = wrapSub args.wrapMsg impl
     }
 

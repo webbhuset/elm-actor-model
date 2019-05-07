@@ -110,8 +110,8 @@ ui args =
             Actor.fromUI
                 { wrapModel = P_Component
                 , wrapMsg = ComponentMsg
-                , fromApp = testedMapIn
-                , toApp = testedMapOut
+                , mapIn = testedMapIn
+                , mapOut = testedMapOut
                 }
                 args.component
     in
@@ -204,8 +204,8 @@ actor tests =
     Actor.fromLayout
         { wrapModel = P_Dev
         , wrapMsg = DevMsg
-        , fromApp = mapIn
-        , toApp = mapOut
+        , mapIn = mapIn
+        , mapOut = mapOut
         }
         (component tests)
 
