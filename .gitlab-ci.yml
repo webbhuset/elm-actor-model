@@ -1,6 +1,5 @@
 stages:
   - compile
-  - docs
   - prepare
   - deploy
 
@@ -17,19 +16,6 @@ compile-elm:
   script:
     - rm -rf ./elm-stuff/
     - make
-  only:
-    - master
-    - /^\d*-.*/
-
-
-compile-docs:
-  stage: docs
-  tags:
-    - elm
-  before_script:
-    - source /etc/profile
-  script:
-    - rm -rf ./elm-stuff/
     - make docs
     - tar -czf ${CI_COMMIT_SHA}.tar.gz docs.json README.md
     - echo "export BUILD_JOB_ID=${CI_JOB_ID}" > variables
