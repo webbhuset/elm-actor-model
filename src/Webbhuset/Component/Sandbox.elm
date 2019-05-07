@@ -1,7 +1,7 @@
 module Webbhuset.Component.Sandbox exposing
     ( SandboxProgram
     , TestCase
-    , testUI
+    , ui
     )
 
 {-|
@@ -14,8 +14,24 @@ run the component using `elm reactor` outside the system and define several test
 @docs SandboxProgram
 
 @docs TestCase
-@docs testUI
 
+## Sandbox UI Components
+
+@docs ui
+
+You can also use the ui sandbox on a Service component.
+Just add a `view` function.
+
+    { init = service.init
+    , update = service.update
+    , kill = service.kill
+    , subs = service.subs
+    , view = view
+    }
+
+    view : Model -> Html MsgIn
+    view model =
+        Html.text "Service Component"
 -}
 
 import Dict exposing (Dict)
@@ -66,7 +82,7 @@ test cases.
 
     main : SandboxProgram Form.Model Form.MsgIn
     main =
-        Sandbox.testUI
+        Sandbox.ui
             Form.component
             "Form Component"
             [ Sandbox.TestCase
@@ -82,13 +98,13 @@ test cases.
             ]
 
 -}
-testUI :
+ui :
     { title : String
     , component : Component.UI model msgIn msgOut
     , cases : List (TestCase msgIn)
     }
     -> SandboxProgram model msgIn
-testUI args =
+ui args =
     let
         testedActor =
             Actor.fromUI
