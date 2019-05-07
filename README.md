@@ -6,8 +6,7 @@ Some concepts / vocabulary.
 
 ### Component
 
-- Is the same as an actor.
-- Like an Elm program with out-messages instead of Cmd's.
+- Like an Elm program with out-messages.
 - Can NOT know anything about other components.
 - Is self contained and can be run as a standalone app. This makes development/testing easy.
 - When a component is started (instantiated) it is called a process.
@@ -16,47 +15,12 @@ Some concepts / vocabulary.
 
 There are three types of components:
 
-#### UI Component
+- UI Component
+- Service Component
+- Layout Component
 
-- Similar to **Browser.element**.
+See Webbhuset.Component for more info.
 
-```elm
-type alias UI model msgIn msgOut =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
-    , view : model -> Html msgIn
-    , kill : model -> List msgOut
-    , subs : model -> Sub msgIn
-    }
-```
-
-#### Service Component
-
-- Similar to **Platform.worker**, ie. has no view function.
-
-```elm
-type alias Service model msgIn msgOut =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
-    , kill : model -> List msgOut
-    , subs : model -> Sub msgIn
-    }
-```
-
-#### Layout Component
-
-- Like a UI Component but can render other components.
-- The `view` function has a different signature. This is needed to be able to render children.
-
-```elm
-type alias Layout model msgIn msgOut msg =
-    { init : PID -> (model, List msgOut, Cmd msgIn)
-    , update : msgIn -> model -> (model, List msgOut, Cmd msgIn)
-    , view : (msgIn -> msg) -> model -> (PID -> Html msg) -> Html msg
-    , kill : model -> List msgOut
-    , subs : model -> Sub msgIn
-    }
-```
 
 ### Actor
 
@@ -71,24 +35,4 @@ type alias Layout model msgIn msgOut msg =
 - Defines which components are avaiable and bootstraps them.
 - The "runtime", routes messages, spawns actors etc.
 
-
-## Modules
-
-
-### Webbhuset.Component
-
-- Helper for creating components.
-
-### Webbhuset.Component.Dev
-
-- Helper for testing and developing components.
-
-### Webbhuset.Actor
-
-- Helper for wrapping a component into an actor
-
-### Webbhuset.ActorSystem
-
-- Bootstrap code for all components
-- Initialize the whole application.
 
