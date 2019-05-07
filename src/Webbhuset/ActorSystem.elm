@@ -183,13 +183,14 @@ type alias ModelRecord name appModel =
 {-| An actor after the model has been applied
 
 -}
-type alias AppliedActor appModel msg =
-    { init : PID -> ( appModel, msg )
-    , update : msg -> PID -> ( appModel, msg )
-    , view : PID -> (PID -> Html msg) -> Html msg
-    , kill : PID -> msg
-    , subs : PID -> Sub msg
-    }
+type AppliedActor appModel msg =
+    AppliedActor
+        { init : PID -> ( appModel, msg )
+        , update : msg -> PID -> ( appModel, msg )
+        , view : PID -> (PID -> Html msg) -> Html msg
+        , kill : PID -> msg
+        , subs : PID -> Sub msg
+        }
 
 
 type alias Impl name appModel appMsg a =
@@ -226,12 +227,13 @@ type alias ApplicationImpl flags name appModel appMsg =
 -}
 applyModel : Actor compModel appModel msg -> compModel -> AppliedActor appModel msg
 applyModel actor model =
-    { init = actor.init
-    , update = actor.update model
-    , view = actor.view model
-    , kill = actor.kill model
-    , subs = actor.subs model
-    }
+    AppliedActor
+        { init = actor.init
+        , update = actor.update model
+        , view = actor.view model
+        , kill = actor.kill model
+        , subs = actor.subs model
+        }
 
 {-| Create a [Browser.element] from your Actor System
 
@@ -366,8 +368,11 @@ update impl msg ((Model model) as m) =
                     case getProcess pid model of
                         Just appModel ->
                             let
+                                (AppliedActor applied) =
+                                    impl.apply appModel
+
                                 ( m2, newMsg ) =
-                                    .update (impl.apply appModel) message pid
+                                    applied.update message pid
                                         |> Tuple.mapFirst (updateInstanceIn model pid >> Model)
                             in
                             update impl newMsg m2
@@ -395,14 +400,17 @@ update impl msg ((Model model) as m) =
                     update impl newMsg (Model m3)
                         |> cmdAndThen (update impl (replyMsg pid))
 
-                Kill ((PID _ pid) as p) ->
-                    case Dict.get pid model.instances of
+                Kill ((PID _ key) as pid) ->
+                    case Dict.get key model.instances of
                         Just appModel ->
                             let
+                                (AppliedActor applied) =
+                                    impl.apply appModel
+
                                 componentLastWords =
-                                    .kill (impl.apply appModel) p
+                                    applied.kill pid
                             in
-                            { model | instances = Dict.remove pid model.instances }
+                            { model | instances = Dict.remove key model.instances }
                                 |> Model
                                 |> update impl componentLastWords
 
@@ -475,8 +483,11 @@ subscriptions impl (Model model) =
         |> Dict.foldl
             (\pid appModel subs ->
                 let
+                    (AppliedActor applied) =
+                        impl.apply appModel
+
                     sub =
-                        .subs (impl.apply appModel) (PID model.prefix pid)
+                        applied.subs (PID model.prefix pid)
                 in
                 if sub == Sub.none then
                     subs
@@ -492,7 +503,17 @@ view : Impl name appModel appMsg a -> Model name appModel -> Html (SysMsg name a
 view impl (Model model) =
     model.views
         ++ List.map Tuple.second model.singleton
-        |> List.map (renderPID (\p -> .view (impl.apply p)) model.instances)
+        |> List.map
+            (renderPID
+                (\p ->
+                    let
+                        (AppliedActor applied) =
+                            impl.apply p
+                    in
+                    applied.view
+                )
+                model.instances
+            )
         |> Html.div []
 
 
