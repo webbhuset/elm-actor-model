@@ -102,6 +102,8 @@ ui :
     { title : String
     , component : Component.UI model msgIn msgOut
     , cases : List (TestCase msgIn)
+    , stringifyMsgIn : msgIn -> String
+    , stringifyMsgOut : msgOut -> String
     }
     -> SandboxProgram model msgIn
 ui args =
@@ -111,14 +113,14 @@ ui args =
                 { wrapModel = P_Component
                 , wrapMsg = ComponentMsg
                 , mapIn = testedMapIn
-                , mapOut = testedMapOut
+                , mapOut = testedMapOut args.stringifyMsgOut
                 }
                 args.component
     in
     System.element
         { init = initApp args.title
-        , spawn = spawn args.cases testedActor
-        , apply = applyModel args.cases testedActor
+        , spawn = spawn args.stringifyMsgIn args.cases testedActor
+        , apply = applyModel args.stringifyMsgIn args.cases testedActor
         }
 
 
@@ -141,10 +143,10 @@ testedMapIn appMsg =
             Nothing
 
 
-testedMapOut : PID -> msgOut -> Msg msgIn
-testedMapOut pid componentMsg =
+testedMapOut : (msgOut -> String) -> PID -> msgOut -> Msg msgIn
+testedMapOut toString pid componentMsg =
     componentMsg
-        |> Debug.toString
+        |> toString
         |> OutMessage
         |> AddMsg pid
         |> DevMsg
@@ -175,21 +177,31 @@ type AppMsg msgIn
     | ComponentMsg msgIn
 
 
-spawn : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> ActorName -> PID -> ( Process model msgIn, Msg msgIn )
-spawn tests tested name =
+spawn : (msgIn -> String)
+    -> List (TestCase msgIn)
+    -> Actor model (Process model msgIn) (Msg msgIn)
+    -> ActorName
+    -> PID
+    -> ( Process model msgIn, Msg msgIn )
+spawn toString tests tested name =
     case name of
         DevActor ->
-            .init (actor tests)
+            .init (actor toString tests)
 
         TestedActor ->
             tested.init
 
 
-applyModel : List (TestCase msgIn) -> Actor model (Process model msgIn) (Msg msgIn) -> Process model msgIn -> System.AppliedActor (Process model msgIn) (Msg msgIn)
-applyModel tests testedActor process =
+applyModel :
+    (msgIn -> String)
+    -> List (TestCase msgIn)
+    -> Actor model (Process model msgIn) (Msg msgIn) 
+    -> Process model msgIn
+    -> System.AppliedActor (Process model msgIn) (Msg msgIn)
+applyModel toString tests testedActor process =
     case process of
         P_Dev model ->
-            System.applyModel (actor tests) model
+            System.applyModel (actor toString tests) model
 
         P_Component model ->
             System.applyModel testedActor model
@@ -199,13 +211,13 @@ applyModel tests testedActor process =
 -- Test Runner Actor
 
 
-actor : List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
-actor tests =
+actor : (msgIn -> String) -> List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
+actor toString tests =
     Actor.fromLayout
         { wrapModel = P_Dev
         , wrapMsg = DevMsg
         , mapIn = mapIn
-        , mapOut = mapOut
+        , mapOut = mapOut toString
         }
         (component tests)
 
@@ -220,8 +232,8 @@ mapIn appMsg =
             Nothing
 
 
-mapOut : PID -> MsgOut msgIn -> Msg msgIn
-mapOut p componentMsg =
+mapOut : (msgIn -> String) -> PID -> MsgOut msgIn -> Msg msgIn
+mapOut toString p componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
              reply
@@ -232,7 +244,7 @@ mapOut p componentMsg =
 
         SendTo pid msg ->
             System.batch
-                [ Debug.toString msg
+                [ toString msg
                     |> InMessage
                     |> AddMsg pid
                     |> DevMsg
