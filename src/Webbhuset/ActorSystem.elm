@@ -4,6 +4,7 @@ module Webbhuset.ActorSystem exposing
     , SysMsg
     , PID
     , addView
+    , addSingletonView
     , application
     , applyModel
     , batch
@@ -39,6 +40,7 @@ Use these to send messages between actors in your system.
     , spawn
     , spawnSingleton
     , addView
+    , addSingletonView
 
 ## Bootstrap
 
@@ -162,6 +164,13 @@ addView : PID -> SysMsg name appMsg
 addView pid =
     Ctrl (AddView pid)
 
+
+{-| Add a singleton process to the global view output.
+
+-}
+addSingletonView : name -> SysMsg name appMsg
+addSingletonView name =
+    Ctrl (AddSingletonView name)
 
 
 {-| The Global Model
@@ -335,21 +344,21 @@ prefixGenerator =
 
 
 update : Impl name appModel appMsg a -> SysMsg name appMsg -> Model name appModel -> ( Model name appModel, Cmd (SysMsg name appMsg) )
-update impl msg ((Model model) as m) =
+update impl msg ((Model modelRecord) as model) =
     case msg of
         None ->
-            ( m, Cmd.none )
+            ( model, Cmd.none )
 
         AppMsg _ ->
-            ( m, Cmd.none )
+            ( model, Cmd.none )
 
         Init initMsg prefix ->
-            { model | prefix = prefix }
+            { modelRecord | prefix = prefix }
                 |> Model
                 |> update impl initMsg
 
         UnmappedMsg appMsg ->
-            ( m, Cmd.none )
+            ( model, Cmd.none )
 
         Ctrl ctrlMsg ->
             case ctrlMsg of
@@ -359,13 +368,13 @@ update impl msg ((Model model) as m) =
                             (\batchMsg previous ->
                                 cmdAndThen (update impl batchMsg) previous
                             )
-                            ( m, Cmd.none )
+                            ( model, Cmd.none )
 
                 Cmd cmd ->
-                    ( m, cmd )
+                    ( model, cmd )
 
                 SendToPID pid message ->
-                    case getProcess pid model of
+                    case getProcess pid modelRecord of
                         Just appModel ->
                             let
                                 (AppliedActor applied) =
@@ -373,26 +382,26 @@ update impl msg ((Model model) as m) =
 
                                 ( m2, newMsg ) =
                                     applied.update message pid
-                                        |> Tuple.mapFirst (updateInstanceIn model pid >> Model)
+                                        |> Tuple.mapFirst (updateInstanceIn modelRecord pid >> Model)
                             in
                             update impl newMsg m2
 
                         Nothing ->
-                            ( m, Cmd.none )
+                            ( model, Cmd.none )
 
                 SendToSingleton name message ->
-                    case findSingletonPID name model of
+                    case findSingletonPID name modelRecord of
                         Just pid ->
-                            update impl (sendToPID pid message) m
+                            update impl (sendToPID pid message) model
 
                         Nothing ->
-                            update impl (spawnSingleton name) m
+                            update impl (spawnSingleton name) model
                                 |> cmdAndThen (update impl msg)
 
                 Spawn name replyMsg ->
                     let
                         ( m2, pid ) =
-                            newPID model
+                            newPID modelRecord
 
                         ( m3, newMsg ) =
                             spawn_ impl name pid m2
@@ -401,7 +410,7 @@ update impl msg ((Model model) as m) =
                         |> cmdAndThen (update impl (replyMsg pid))
 
                 Kill ((PID _ key) as pid) ->
-                    case Dict.get key model.instances of
+                    case Dict.get key modelRecord.instances of
                         Just appModel ->
                             let
                                 (AppliedActor applied) =
@@ -410,17 +419,17 @@ update impl msg ((Model model) as m) =
                                 componentLastWords =
                                     applied.kill pid
                             in
-                            { model | instances = Dict.remove key model.instances }
+                            { modelRecord | instances = Dict.remove key modelRecord.instances }
                                 |> Model
                                 |> update impl componentLastWords
 
                         Nothing ->
-                            ( m, Cmd.none )
+                            ( model, Cmd.none )
 
                 SpawnSingleton name ->
                     let
                         ( m2, pid ) =
-                            newPID model
+                            newPID modelRecord
 
                         ( m3, newMsg ) =
                             appendSingleton name pid m2
@@ -429,10 +438,19 @@ update impl msg ((Model model) as m) =
                     update impl newMsg (Model m3)
 
                 AddView pid ->
-                    ( { model | views = pid :: model.views }
+                    ( { modelRecord | views = pid :: modelRecord.views }
                         |> Model
                     , Cmd.none
                     )
+
+                AddSingletonView name ->
+                    case findSingletonPID name modelRecord of
+                        Just pid ->
+                            update impl (addView pid) model
+
+                        Nothing ->
+                            update impl (spawnSingleton name) model
+                                |> cmdAndThen (update impl msg)
 
 
 spawn_ : Impl name appModel appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )
@@ -502,7 +520,6 @@ subscriptions impl (Model model) =
 view : Impl name appModel appMsg a -> Model name appModel -> Html (SysMsg name appMsg)
 view impl (Model model) =
     model.views
-        ++ List.map Tuple.second model.singleton
         |> List.map
             (renderPID
                 (\p ->

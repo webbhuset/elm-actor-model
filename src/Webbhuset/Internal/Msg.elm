@@ -11,13 +11,14 @@ type Msg name appMsg
     | Init (Msg name appMsg) String
 
 
-type Control actor msg
+type Control name msg
     = Batch (List msg)
     | Cmd (Cmd msg)
     | Kill PID
     | SendToPID PID msg
-    | SendToSingleton actor msg
-    | Spawn actor (PID -> msg)
-    | SpawnSingleton actor
+    | SendToSingleton name msg
+    | Spawn name (PID -> msg)
+    | SpawnSingleton name
     | AddView PID
+    | AddSingletonView name
 
