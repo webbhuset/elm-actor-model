@@ -75,6 +75,13 @@ type alias TestCase msgIn =
     }
 
 
+
+{-| Spawnable componentes
+-}
+type Spawnable
+    = LoremIpsum
+
+
 {-| Wrap a component in a sandbox application.
 
 This will render each test case and log all messages.
