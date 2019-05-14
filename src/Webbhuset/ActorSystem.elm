@@ -364,6 +364,31 @@ prefixGenerator =
             )
 
 
+collectAppMsgs : SysMsg name appMsg -> List (SysMsg name appMsg)
+collectAppMsgs msg =
+    case msg of
+        AppMsg _ ->
+            [ msg ]
+
+        Ctrl (Batch list) ->
+            List.concatMap collectAppMsgs list
+
+        _ ->
+            []
+
+
+composeSysMsg : SysMsg name appMsg -> SysMsg name appMsg -> SysMsg name appMsg
+composeSysMsg msg1 msg2 =
+    if msg1 == None then
+        msg2
+    else if msg2 == None then
+        msg1
+    else
+        [ msg1, msg2 ]
+            |> Batch
+            |> Ctrl
+
+
 update : Impl name appModel appMsg a -> SysMsg name appMsg -> Model name appModel -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 update impl msg ((Model modelRecord) as model) =
     case msg of
@@ -398,11 +423,26 @@ update impl msg ((Model modelRecord) as model) =
                     case getProcess pid modelRecord of
                         Just appModel ->
                             let
-                                (AppliedActor applied) =
-                                    impl.apply appModel
+                                appMsgs =
+                                    collectAppMsgs message
 
                                 ( m2, newMsg ) =
-                                    applied.update message pid
+                                    appMsgs
+                                        |> List.foldl
+                                            (\appMsg ( mod0, sysMsg0 ) ->
+                                                let
+                                                    (AppliedActor applied) =
+                                                        impl.apply mod0
+
+                                                    (mod1, sysMsg1) =
+                                                        applied.update appMsg pid
+                                                in
+                                                ( mod1
+                                                , composeSysMsg sysMsg0 sysMsg1
+                                                )
+
+                                            )
+                                            (appModel, None)
                                         |> Tuple.mapFirst (updateInstanceIn modelRecord pid >> Model)
                             in
                             update impl newMsg m2
