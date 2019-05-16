@@ -28,20 +28,46 @@ module Webbhuset.ActorSystem exposing
 @docs element
     , application
 
-## System Messages
 
-Use these to send messages between actors in your system.
+## System Messages
 
 @docs none
     , batch
-    , kill
     , toAppMsg
+
+## Processes
+
+Actors can be spawned (instantiated or started). A spawned actor is
+called Process. A process is referenced by its PID.
+
+Knowing an Actor's PID you can send messages to it or kill it.
+
+@docs spawn
     , sendToPID
+    , kill
+
+## Singleton Processes
+
+It can be helpful to treat some actors as a singleton process. They
+are started on application init and will always be running.
+Some examples are the Router actor or the Navigation. It does not make
+much sense having multiple of them either.
+
+A singleton process is just a normal actor that you can reference by
+its name instead of its PID.
+
+@docs spawnSingleton
     , sendToSingleton
-    , spawn
-    , spawnSingleton
-    , addView
     , withSingletonPID
+
+
+## Program Output
+
+You Elm program's Html output (view function) is controlled here.
+You need to add at least one process to actually see anything more
+than a blank page.
+
+@docs addView
 
 ## Bootstrap
 
@@ -73,9 +99,6 @@ type alias PID =
 
 
 
--- Ctrl
-
-
 {-| Your Elm Program will have this as its Msg type.
 
 -}
@@ -84,9 +107,10 @@ type alias SysMsg name appMsg =
 
 
 
-{-| Don't send anything.
+{-| Don't send or do anything.
 
 Similar concept to `Cmd.none`
+
 -}
 none : SysMsg name appMsg
 none =
@@ -104,6 +128,7 @@ toAppMsg d =
 {-| Batch control messages
 
 Similar concept to `Cmd.batch`
+
 -}
 batch : List (SysMsg name appMsg) -> SysMsg name appMsg
 batch list =
@@ -134,8 +159,16 @@ sendToSingleton name msg =
         Ctrl (SendToSingleton name msg)
 
 
-{-| Spawn a process. The PID will be send as a reply msg.
+{-| Start an Actor. This will create a process. The PID will
+be sent in a message using the provied message constructor.
 
+    System.spawn
+        ActorName.LoginForm
+        (\pid ->
+            PageLayout.SetContent pid
+                |> System.toAppMsg
+                |> System.sendToSingleton ActorName.PageLayout
+        )
 -}
 spawn : name -> (PID -> SysMsg name appMsg) -> SysMsg name appMsg
 spawn name replyMsg =
