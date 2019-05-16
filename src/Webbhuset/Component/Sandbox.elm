@@ -127,9 +127,11 @@ ui args =
 initApp : String -> () -> Msg msgIn
 initApp title _ =
     System.batch
-        [ System.spawnSingleton DevActor
-        , System.sendToSingleton DevActor
-            (System.toAppMsg <| DevMsg <| SetTitle title)
+        [ System.withSingletonPID DevActor System.addView
+        , SetTitle title
+              |> DevMsg
+              |> System.toAppMsg
+              |> System.sendToSingleton DevActor
         ]
 
 
