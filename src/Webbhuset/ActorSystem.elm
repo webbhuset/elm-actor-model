@@ -4,7 +4,6 @@ module Webbhuset.ActorSystem exposing
     , SysMsg
     , PID
     , addView
-    , addSingletonView
     , application
     , applyModel
     , batch
@@ -16,6 +15,7 @@ module Webbhuset.ActorSystem exposing
     , sendToSingleton
     , spawn
     , spawnSingleton
+    , withSingletonPID
     )
 
 {-|
@@ -40,7 +40,7 @@ Use these to send messages between actors in your system.
     , spawn
     , spawnSingleton
     , addView
-    , addSingletonView
+    , withSingletonPID
 
 ## Bootstrap
 
@@ -165,12 +165,33 @@ addView pid =
     Ctrl (AddView pid)
 
 
-{-| Add a singleton process to the global view output.
+{-| Do something with a singleton PID.
+
+Sometimes you want to send a singleton PID to a process.
+
+For example, add the root layout component to the system output.
+
+    init flags =
+        [ System.withSingletonPID ActorName.PageLayout System.addView
+        ]
+
+
+Another example, you want to treat the site Header as a singleton
+which makes it easier to send messages to it.
+
+
+    System.withSingletonPID
+        ActorName.Header
+        (\pid ->
+            PageLayout.SetHeader pid
+                |> System.toAppMsg
+                |> System.sendToSingleton ActorName.PageLayout
+        )
 
 -}
-addSingletonView : name -> SysMsg name appMsg
-addSingletonView name =
-    Ctrl (AddSingletonView name)
+withSingletonPID : name -> (PID -> SysMsg name appMsg) -> SysMsg name appMsg
+withSingletonPID name toMsg =
+    Ctrl (WithSingletonPID name toMsg)
 
 
 {-| The Global Model
@@ -443,10 +464,10 @@ update impl msg ((Model modelRecord) as model) =
                     , Cmd.none
                     )
 
-                AddSingletonView name ->
+                WithSingletonPID name makeMsg ->
                     case findSingletonPID name modelRecord of
                         Just pid ->
-                            update impl (addView pid) model
+                            update impl (makeMsg pid) model
 
                         Nothing ->
                             update impl (spawnSingleton name) model

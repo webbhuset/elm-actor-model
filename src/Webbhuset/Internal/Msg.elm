@@ -20,5 +20,5 @@ type Control name msg
     | Spawn name (PID -> msg)
     | SpawnSingleton name
     | AddView PID
-    | AddSingletonView name
+    | WithSingletonPID name (PID -> msg)
 
