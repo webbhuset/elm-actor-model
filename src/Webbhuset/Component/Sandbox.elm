@@ -125,6 +125,8 @@ ui args =
         { init = initApp args.title
         , spawn = spawn args.stringifyMsgIn args.cases testedActor
         , apply = applyModel args.stringifyMsgIn args.cases testedActor
+        , view = Html.div []
+        , emptyOutput = Html.text ""
         , onUrlRequest =
             \urlRequest ->
                 case urlRequest of
@@ -236,9 +238,9 @@ spawn toString tests tested name =
 applyModel :
     (msgIn -> String)
     -> List (TestCase msgIn)
-    -> Actor model (Process model msgIn) (Msg msgIn) 
+    -> Actor model (Process model msgIn) (Msg msgIn)
     -> Process model msgIn
-    -> System.AppliedActor (Process model msgIn) (Msg msgIn)
+    -> System.AppliedActor (Process model msgIn) (Html (Msg msgIn)) (Msg msgIn)
 applyModel toString tests testedActor process =
     case process of
         P_Dev model ->

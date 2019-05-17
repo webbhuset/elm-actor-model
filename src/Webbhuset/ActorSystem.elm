@@ -247,41 +247,45 @@ type alias ModelRecord name appModel =
 {-| An actor after the model has been applied
 
 -}
-type AppliedActor appModel msg =
+type AppliedActor appModel output msg =
     AppliedActor
         { init : PID -> ( appModel, msg )
         , update : msg -> PID -> ( appModel, msg )
-        , view : PID -> (PID -> Html msg) -> Html msg
+        , view : PID -> (PID -> output) -> output
         , kill : PID -> msg
         , subs : PID -> Sub msg
         }
 
 
-type alias Impl name appModel appMsg a =
+type alias Impl name appModel output appMsg a =
     { a
         | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-        , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+        , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+        , emptyOutput : output
     }
 
 
 {-| The implementation of a Browser.element program
 
 -}
-type alias ElementImpl flags name appModel appMsg =
+type alias ElementImpl flags name appModel output appMsg =
     { init : flags -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
-    , view : List (Html (SysMsg name appMsg)) -> Html (SysMsg name appMsg)
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    , emptyOutput : output
     }
 
 
 {-| The implementation of a Browser.application program
 
 -}
-type alias ApplicationImpl flags name appModel appMsg =
+type alias ApplicationImpl flags name appModel output appMsg =
     { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    , emptyOutput : output
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
     }
@@ -290,7 +294,7 @@ type alias ApplicationImpl flags name appModel appMsg =
 {-| Apply the compModel to an actor.
 
 -}
-applyModel : Actor compModel appModel (Html msg) msg -> compModel -> AppliedActor appModel msg
+applyModel : Actor compModel appModel output msg -> compModel -> AppliedActor appModel output msg
 applyModel actor model =
     AppliedActor
         { init = actor.init
@@ -321,8 +325,9 @@ type alias Actor compModel appModel output msg =
 element :
     { init : flags -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
-    , view : List (Html (SysMsg name appMsg)) -> Html (SysMsg name appMsg)
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    , emptyOutput : output
     }
     -> Program flags (Model name appModel) (SysMsg name appMsg)
 element impl =
@@ -342,7 +347,9 @@ element impl =
 application :
     { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    , emptyOutput : output
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
     }
@@ -352,13 +359,13 @@ application impl =
         { init = initApplication impl
         , update = update impl
         , subscriptions = subscriptions impl
-        , view = view impl >> (\html -> { title = "", body = html })
+        , view = view impl >> impl.view >> (\html -> { title = "", body = [ html ] })
         , onUrlRequest = impl.onUrlRequest
         , onUrlChange = impl.onUrlChange
         }
 
 
-initElement : ElementImpl flags name appModel appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
+initElement : ElementImpl flags name appModel output appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initElement impl flags =
     ( { instances = Dict.empty
       , lastPID = 100
@@ -374,7 +381,7 @@ initElement impl flags =
 
 
 initApplication :
-    ApplicationImpl flags name appModel appMsg
+    ApplicationImpl flags name appModel output appMsg
     -> flags
     -> Url
     -> Nav.Key
@@ -438,7 +445,11 @@ composeSysMsg msg1 msg2 =
             |> Ctrl
 
 
-update : Impl name appModel appMsg a -> SysMsg name appMsg -> Model name appModel -> ( Model name appModel, Cmd (SysMsg name appMsg) )
+update :
+    Impl name appModel output appMsg a
+    -> SysMsg name appMsg
+    -> Model name appModel
+    -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 update impl msg ((Model modelRecord) as model) =
     case msg of
         None ->
@@ -563,7 +574,7 @@ update impl msg ((Model modelRecord) as model) =
                                 |> cmdAndThen (update impl msg)
 
 
-spawn_ : Impl name appModel appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )
+spawn_ : Impl name appModel output appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )
 spawn_ impl name pid model =
     impl.spawn name pid
         |> Tuple.mapFirst (updateInstanceIn model pid)
@@ -605,7 +616,7 @@ findSingletonPID name model =
         |> Maybe.map Tuple.second
 
 
-subscriptions : Impl name appModel appMsg a -> Model name appModel -> Sub (SysMsg name appMsg)
+subscriptions : Impl name appModel output appMsg a -> Model name appModel -> Sub (SysMsg name appMsg)
 subscriptions impl (Model model) =
     model.instances
         |> Dict.foldl
@@ -627,11 +638,12 @@ subscriptions impl (Model model) =
         |> Sub.batch
 
 
-view : Impl name appModel appMsg a -> Model name appModel -> List (Html (SysMsg name appMsg))
+view : Impl name appModel output appMsg a -> Model name appModel -> List output
 view impl (Model model) =
     model.views
         |> List.map
             (renderPID
+                impl.emptyOutput
                 (\p ->
                     let
                         (AppliedActor applied) =
@@ -643,14 +655,14 @@ view impl (Model model) =
             )
 
 
-renderPID : (appModel -> PID -> (PID -> Html msg) -> Html msg) -> Dict Int appModel -> PID -> Html msg
-renderPID viewFn dict ((PID prefix pid) as p) =
+renderPID : output -> (appModel -> PID -> (PID -> output) -> output) -> Dict Int appModel -> PID -> output
+renderPID emptyOutput viewFn dict ((PID prefix pid) as p) =
     Dict.get pid dict
         |> Maybe.map
             (\appModel ->
-                viewFn appModel p (renderPID viewFn dict)
+                viewFn appModel p (renderPID emptyOutput viewFn dict)
             )
-        |> Maybe.withDefault (Html.text "")
+        |> Maybe.withDefault emptyOutput
 
 
 cmdAndThen : (m -> ( m, Cmd msg )) -> ( m, Cmd msg ) -> ( m, Cmd msg )
