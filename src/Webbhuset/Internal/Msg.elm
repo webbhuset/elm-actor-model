@@ -9,6 +9,7 @@ type Msg name appMsg
     | UnmappedMsg appMsg
     | Ctrl (Control name (Msg name appMsg))
     | Init (Msg name appMsg) String
+    | SetDocumentTitle String
 
 
 type Control name msg

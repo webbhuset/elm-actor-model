@@ -158,14 +158,14 @@ initApp title _ url key =
             |> NavMsg
             |> System.toAppMsg
             |> System.sendToSingleton Navigation
-        , UrlChanged url
-            |> DevMsg
-            |> System.toAppMsg
-            |> System.sendToSingleton DevActor
         , SetTitle title
               |> DevMsg
               |> System.toAppMsg
               |> System.sendToSingleton DevActor
+        , UrlChanged url
+            |> DevMsg
+            |> System.toAppMsg
+            |> System.sendToSingleton DevActor
         ]
 
 
@@ -328,6 +328,9 @@ mapOut toString p componentMsg =
                     |> System.sendToPID pid
                 ]
 
+        SetPageTitle title ->
+            System.setDocumentTitle title
+
 
 
 -- Test Runner Component
@@ -383,6 +386,7 @@ type MsgIn
 type MsgOut msgIn
     = Spawn PID (PID -> MsgIn)
     | SendTo PID msgIn
+    | SetPageTitle String
 
 
 
@@ -478,14 +482,23 @@ update msgIn model =
                     let
                         idx =
                             String.toInt n
+
+                        title =
+                            idx
+                                |> Maybe.andThen (\i -> Dict.get i model.cases)
+                                |> Maybe.map .title
+                                |> Maybe.withDefault model.title
                     in
                     ( { model | displayCase = idx }
-                    , []
+                    , [ SetPageTitle title
+                      ]
                     , Cmd.none
                     )
+
                 _ ->
                     ( { model | displayCase = Nothing }
-                    , []
+                    , [ SetPageTitle model.title
+                      ]
                     , Cmd.none
                     )
 

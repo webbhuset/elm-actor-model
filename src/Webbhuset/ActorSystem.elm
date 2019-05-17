@@ -16,6 +16,7 @@ module Webbhuset.ActorSystem exposing
     , sendToSingleton
     , spawn
     , spawnSingleton
+    , setDocumentTitle
     , withSingletonPID
     )
 
@@ -68,6 +69,7 @@ You need to add at least one process to actually see anything more
 than a blank page.
 
 @docs addView
+    , setDocumentTitle
 
 ## Bootstrap
 
@@ -199,6 +201,14 @@ addView pid =
     Ctrl (AddView pid)
 
 
+{-| Set the document title. Only works with System.application
+
+-}
+setDocumentTitle : String -> SysMsg name appMsg
+setDocumentTitle title =
+    SetDocumentTitle title
+
+
 {-| Do something with a singleton PID.
 
 Sometimes you want to send a singleton PID to a process.
@@ -241,6 +251,7 @@ type alias ModelRecord name appModel =
     , prefix : String
     , singleton : List ( name, PID )
     , views : List PID
+    , documentTitle : String
     }
 
 
@@ -354,10 +365,19 @@ application impl =
         { init = initApplication impl
         , update = update impl
         , subscriptions = subscriptions impl
-        , view = view impl >> impl.view >> (\html -> { title = "", body = [ html ] })
+        , view = applicationView impl
         , onUrlRequest = impl.onUrlRequest
         , onUrlChange = impl.onUrlChange
         }
+
+
+applicationView : ApplicationImpl flags name appModel output appMsg
+    -> Model name appModel
+    -> Browser.Document (SysMsg name appMsg)
+applicationView impl ((Model modelRecord) as model) =
+    view impl model
+        |> impl.view
+        |> (\html -> { title = modelRecord.documentTitle, body = [ html ] })
 
 
 initElement : ElementImpl flags name appModel output appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
@@ -367,6 +387,7 @@ initElement impl flags =
       , prefix = ""
       , singleton = []
       , views = []
+      , documentTitle = ""
       }
           |> Model
     , Random.generate
@@ -387,6 +408,7 @@ initApplication impl flags url key =
       , prefix = ""
       , singleton = []
       , views = []
+      , documentTitle = ""
       }
         |> Model
     , Random.generate
@@ -460,6 +482,12 @@ update impl msg ((Model modelRecord) as model) =
 
         UnmappedMsg appMsg ->
             ( model, Cmd.none )
+
+        SetDocumentTitle title ->
+            ( { modelRecord | documentTitle = title }
+                |> Model
+            , Cmd.none
+            )
 
         Ctrl ctrlMsg ->
             case ctrlMsg of
