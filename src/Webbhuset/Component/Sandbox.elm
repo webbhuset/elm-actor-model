@@ -126,7 +126,6 @@ ui args =
         , spawn = spawn args.stringifyMsgIn args.cases testedActor
         , apply = applyModel args.stringifyMsgIn args.cases testedActor
         , view = Html.div []
-        , emptyOutput = Html.text ""
         , onUrlRequest =
             \urlRequest ->
                 case urlRequest of

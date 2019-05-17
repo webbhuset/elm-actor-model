@@ -154,9 +154,9 @@ layoutView : Args name compModel appModel msgIn msgOut appMsg
         )
     -> compModel
     -> PID
-    -> (PID -> Html (SysMsg name appMsg))
+    -> (PID -> Maybe (Html (SysMsg name appMsg)))
     -> Html (SysMsg name appMsg)
-layoutView args view model pid =
+layoutView args view model pid renderPID =
     view
         (args.wrapMsg
             >> Msg.AppMsg
@@ -164,6 +164,7 @@ layoutView args view model pid =
             >> Msg.Ctrl
         )
         model
+        (renderPID >> Maybe.withDefault (Html.text ""))
 
 
 wrapKill : (PID -> msgOut -> SysMsg name appMsg)

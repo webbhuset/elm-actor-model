@@ -251,7 +251,7 @@ type AppliedActor appModel output msg =
     AppliedActor
         { init : PID -> ( appModel, msg )
         , update : msg -> PID -> ( appModel, msg )
-        , view : PID -> (PID -> output) -> output
+        , view : PID -> (PID -> Maybe output) -> output
         , kill : PID -> msg
         , subs : PID -> Sub msg
         }
@@ -261,7 +261,6 @@ type alias Impl name appModel output appMsg a =
     { a
         | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
         , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
-        , emptyOutput : output
     }
 
 
@@ -273,7 +272,6 @@ type alias ElementImpl flags name appModel output appMsg =
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
-    , emptyOutput : output
     }
 
 
@@ -285,7 +283,6 @@ type alias ApplicationImpl flags name appModel output appMsg =
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
-    , emptyOutput : output
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
     }
@@ -311,7 +308,7 @@ applyModel actor model =
 type alias Actor compModel appModel output msg =
     { init : PID -> ( appModel, msg )
     , update : compModel -> msg -> PID -> ( appModel, msg )
-    , view : compModel -> PID -> (PID -> output) -> output
+    , view : compModel -> PID -> (PID -> Maybe output) -> output
     , kill : compModel -> PID -> msg
     , subs : compModel -> PID -> Sub msg
     }
@@ -327,7 +324,6 @@ element :
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
-    , emptyOutput : output
     }
     -> Program flags (Model name appModel) (SysMsg name appMsg)
 element impl =
@@ -349,7 +345,6 @@ application :
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
-    , emptyOutput : output
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
     }
@@ -641,9 +636,8 @@ subscriptions impl (Model model) =
 view : Impl name appModel output appMsg a -> Model name appModel -> List output
 view impl (Model model) =
     model.views
-        |> List.map
+        |> List.filterMap
             (renderPID
-                impl.emptyOutput
                 (\p ->
                     let
                         (AppliedActor applied) =
@@ -655,14 +649,13 @@ view impl (Model model) =
             )
 
 
-renderPID : output -> (appModel -> PID -> (PID -> output) -> output) -> Dict Int appModel -> PID -> output
-renderPID emptyOutput viewFn dict ((PID prefix pid) as p) =
-    Dict.get pid dict
+renderPID : (appModel -> PID -> (PID -> Maybe output) -> output) -> Dict Int appModel -> PID -> Maybe output
+renderPID renderActor dict ((PID _ key) as pid) =
+    Dict.get key dict
         |> Maybe.map
             (\appModel ->
-                viewFn appModel p (renderPID emptyOutput viewFn dict)
+                renderActor appModel pid (renderPID renderActor dict)
             )
-        |> Maybe.withDefault emptyOutput
 
 
 cmdAndThen : (m -> ( m, Cmd msg )) -> ( m, Cmd msg ) -> ( m, Cmd msg )
