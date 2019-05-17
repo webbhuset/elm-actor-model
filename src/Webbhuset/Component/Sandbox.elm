@@ -580,6 +580,8 @@ type alias DevModel msgIn =
     , messages : Dict String (List Message)
     , displayCase : Maybe Int
     , bgColor : String
+    , testCaseBgColor : String
+    , componentViewBgColor : String
     , title : String
     }
 
@@ -593,11 +595,13 @@ type alias DevModel msgIn =
 type MsgIn msgIn
     = NewPID Int PID
     | ReInit Int
-    | SetBg String
     | SetTitle String
     | AddMsg PID Message
     | UrlChanged Url
     | ForwardMsg (MsgOut msgIn)
+    | BgColorPicked String
+    | TestCaseBgColorPicked String
+    | ComponentBgColorPicked String
 
 
 type MsgOut msgIn
@@ -619,7 +623,9 @@ init config pid =
       , pids = Dict.empty
       , displayCase = Nothing
       , messages = Dict.empty
-      , bgColor = "#fff"
+      , bgColor = "#333"
+      , testCaseBgColor = "#fff"
+      , componentViewBgColor = "transparent"
       , title = ""
       }
     , config.cases
@@ -696,12 +702,6 @@ update config msgIn model =
             , Cmd.none
             )
 
-        SetBg col ->
-            ( { model | bgColor = col }
-            , []
-            , Cmd.none
-            )
-
         SetTitle t ->
             ( { model | title = t }
             , []
@@ -756,6 +756,24 @@ update config msgIn model =
                     , Cmd.none
                     )
 
+        BgColorPicked color ->
+            ( { model | bgColor = color }
+            , []
+            , Cmd.none
+            )
+
+        TestCaseBgColorPicked color ->
+            ( { model | testCaseBgColor = color }
+            , []
+            , Cmd.none
+            )
+
+        ComponentBgColorPicked color ->
+            ( { model | componentViewBgColor = color }
+            , []
+            , Cmd.none
+            )
+
 
 
 -- VIEW
@@ -769,28 +787,41 @@ view config toSelf model renderPID =
                 |> Dict.toList
     in
     Html.div
-        []
-        [ Html.node "style" [] [ Html.text css ]
-        , Html.h1 [] [ Html.text model.title ]
-        , Html.div
+        [ HA.class "ams-pagewrap"
+        , HA.style "background" model.bgColor
+        ]
+        [ Html.node "style"
             []
-            [ Html.button [ Events.onClick (toSelf <| SetBg "#fff") ] [ Html.text "BG #fff" ]
-            , Html.button [ Events.onClick (toSelf <| SetBg "#eee") ] [ Html.text "BG #eee" ]
-            , Html.button [ Events.onClick (toSelf <| SetBg "#444") ] [ Html.text "BG #444" ]
-            , Html.pre
-                []
-                [ Html.div
-                    [ HA.style "color" "#061"
-                    ]
-                    [ Html.text "In Message"
-                    ]
-                , Html.div
-                    [ HA.style "color" "#00a"
-                    ]
-                    [ Html.text "  -> Out Message"
-                    ]
-                ]
+            [ css
+                |> String.replace "{{bgColor}}" model.bgColor
+                |> String.replace "{{testCaseBg}}" model.testCaseBgColor
+                |> String.replace "{{componentBg}}" model.componentViewBgColor
+                |> Html.text
             ]
+        , Html.div
+            [ HA.class "ams-page-header"
+            ]
+            [ Html.h1
+                [ HA.class "ams-pagetitle"
+                ]
+                [ Html.text model.title ]
+            , colorInput
+                "body-bg"
+                "Body Bg"
+                model.bgColor
+                (toSelf << BgColorPicked)
+            , colorInput
+                "body-bg"
+                "Test case Bg"
+                model.testCaseBgColor
+                (toSelf << TestCaseBgColorPicked)
+            , colorInput
+                "body-bg"
+                "Component Bg"
+                model.componentViewBgColor
+                (toSelf << ComponentBgColorPicked)
+            ]
+        , Html.hr [ HA.class "ams-hr" ] []
         , Html.div
             [
             ]
@@ -847,71 +878,272 @@ view config toSelf model renderPID =
             )
         ]
 
+colorInput : String -> String -> String -> (String -> msg) -> Html msg
+colorInput htmlID label color toMsg =
+    Html.div
+        [ HA.class "ams-colorinput__row"
+        ]
+        [ Html.input
+            [ HA.type_ "color"
+            , Events.onInput toMsg
+            , HA.value color
+            , HA.id htmlID
+            , HA.class "ams-colorinput__input"
+            ]
+            []
+        , Html.label
+            [ HA.for htmlID
+            , HA.class "ams-colorinput__label"
+            ]
+            [ Html.text label
+            ]
+        ]
 
 
 renderChild : DevModel m -> ((MsgIn msgIn) -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
 renderChild model toSelf renderPID idx testCase child =
     Html.div
-        []
-        [ Html.h3 [] [ Html.text testCase.title ]
-        , Html.p [] [ Html.text testCase.desc ]
-        , child.pid
-            |> (\(PID _ p) -> "PID: " ++ String.fromInt p)
-            |> Html.text
-            |> List.singleton
-            |> Html.p []
-        , Html.button
-            [ Events.onClick (toSelf <| ReInit idx)
+        [ HA.class "ams-testcase"
+        ]
+        [ Html.h2 
+            [ HA.class "ams-testcase__title"
             ]
-            [ Html.text "Reset test"
+            [ Html.text testCase.title
             ]
-        , Html.h4 [] [ Html.text "Component view:" ]
+        , Html.p
+            [ HA.class "ams-testcase__desc"
+            ]
+            [ Html.text testCase.desc
+            ]
         , Html.div
-            [ HA.style "margin" "2em 1em"
-            , HA.style "background" model.bgColor
+            [ HA.class "ams-cornerarea"
             ]
-            [ renderPID child.pid
+            [ child.pid
+                |> (\(PID _ p) -> "PID: " ++ String.fromInt p)
+                |> Html.text
+                |> List.singleton
+                |> Html.span [ HA.class "ams-testcase__pidLabel" ]
+            , Html.button
+                [ Events.onClick (toSelf <| ReInit idx)
+                , HA.class "ams-button"
+                ]
+                [ Html.text "Reset test"
+                ]
             ]
-        , Html.h4 [] [ Html.text "Message log:" ]
-        , Html.pre
-            []
-            (model.messages
-                |> Dict.get (PID.toString child.pid)
-                |> Maybe.map
-                    (List.reverse
-                        >> List.map
-                            (\message ->
-                                case message of
-                                    InMessage inMsg ->
-                                        inMsg
-                                            |> Html.text
-                                            |> List.singleton
-                                            |> Html.div
-                                                [ HA.style "margin-top" "0.5em"
-                                                , HA.style "color" "#061"
-                                                ]
+        , section
+            [ heading 5 "Component view:"
+            , Html.div
+                [ HA.class "ams-testcase__componentview"
+                ]
+                [ renderPID child.pid
+                ]
+            ]
+        , section
+            [ heading 5 "Message log:"
+            , Html.div
+                [ HA.class "ams-messagelog"
+                ]
+                (model.messages
+                    |> Dict.get (PID.toString child.pid)
+                    |> Maybe.map
+                        (List.reverse
+                            >> List.map
+                                (\message ->
+                                    case message of
+                                        InMessage inMsg ->
+                                            "> "
+                                                ++ inMsg
+                                                |> Html.text
+                                                |> List.singleton
+                                                |> Html.span
+                                                    [ HA.class "ams-messagelog__inmsg"
+                                                    ]
 
-                                    OutMessage outMsg ->
-                                        "  -> "
-                                            ++ outMsg
-                                            |> Html.text
-                                            |> List.singleton
-                                            |> Html.div
-                                                [ HA.style "margin-top" "0.1em"
-                                                , HA.style "color" "#00a"
-                                                ]
-                            )
-                    )
-                |> Maybe.withDefault []
-            )
-        , Html.hr [] []
+                                        OutMessage outMsg ->
+                                            "  -> "
+                                                ++ outMsg
+                                                |> Html.text
+                                                |> List.singleton
+                                                |> Html.span
+                                                    [ HA.class "ams-messagelog__outmsg"
+                                                    ]
+                                )
+                        )
+                    |> Maybe.withDefault []
+                )
+            ]
+        ]
+
+
+section : List (Html msg) -> Html msg
+section =
+    Html.div
+        [ HA.class "ams-section"
+        ]
+
+
+heading : Int -> String -> Html msg
+heading lvl txt =
+    let
+        elem =
+            case lvl of
+                1 -> Html.h1
+                2 -> Html.h2
+                3 -> Html.h3
+                4 -> Html.h4
+                5 -> Html.h5
+                _ -> Html.h5
+    in
+    elem
+        [ HA.class "ams-heading"
+        ]
+        [ Html.text txt
         ]
 
 
 css : String
 css =
     """
-body {
-    background: #eee;
-}
+    html, body {
+        margin: 0;
+        padding: 0;
+        font-size: 16px;
+    }
+    body {
+        background: {{bgColor}};
+    }
+
+
+    /** Page **/
+
+    .ams-pagewrap {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+    .ams-section {
+        margin: 3rem 0;
+    }
+    .ams-page-header {
+        display: flex;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        margin: 1rem 0 0 0;
+    }
+    .ams-pagetitle {
+        font-family: sans-serif;
+        color: #fff;
+        margin: 0;
+        flex: 1 1 auto;
+    }
+
+    .ams-color-settings {
+        flex: 0 0 auto;
+    }
+
+    .ams-heading {
+        font-family: sans-serif;
+        margin: 0;
+        color: #333;
+    }
+
+    h1.ams-heading { font-size: 2.5rem; margin-top: 2.5rem; }
+    h2.ams-heading { font-size: 1.8rem; margin-top: 1.8rem; }
+    h3.ams-heading { font-size: 1.5rem; margin-top: 1.5rem; }
+    h4.ams-heading { font-size: 1.25rem; margin-top: 1.25rem; }
+    h5.ams-heading { font-size: 0.8rem; margin-top: 0.8rem; }
+
+    .ams-hr {
+        border-color: #fff;
+    }
+
+    .ams-button {
+        -webkit-appearance: none;
+        background: #888;
+        padding: 0.25rem 1rem;
+        border: none;
+        color: #fff;
+        border-radius: 2px;
+        line-height: 1rem;
+        transition: background 0.1s ease-out;
+        cursor: pointer;
+        outline: none;
+        font-family: sans-serif;
+    }
+
+    .ams-button:hover {
+        background: #555;
+        font-family: sans-serif;
+    }
+
+    .ams-colorinput__row {
+    }
+    .ams-colorinput__label {
+        padding: 0 1rem;
+        color: #fff;
+        font-family: monospace;
+    }
+
+    /** Test Case **/
+    .ams-testcase {
+        border-radius: 4px;
+        padding: 1rem;
+        margin: 1rem 0;
+        background: {{testCaseBg}};
+        position: relative;
+    }
+    .ams-testcase > *:last-child {
+        margin-bottom: 0;
+    }
+    .ams-testcase__title {
+        font-family: sans-serif;
+        color: #333;
+        font-size: 1.5rem;
+        margin: 0;
+    }
+    .ams-testcase__desc {
+        font-family: sans-serif;
+    }
+    .ams-testcase__componentview {
+        border: 1px solid #e7e7e7;
+        border-radius: 4px;
+        background: {{componentBg}};
+    }
+
+    .ams-cornerarea {
+        position: absolute;
+        top: 0;
+        right: 0;
+        padding: 0.5rem 1rem;
+    }
+    .ams-cornerarea > * {
+        margin-left: 1rem;
+    }
+    .ams-testcase__pidLabel {
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #333;
+    }
+
+    /** Message Log **/
+    .ams-messagelog {
+        border-radius: 4px;
+        background: #eee;
+        padding: 0.5rem 1rem;
+        min-height: 24;
+        margin: 0;
+    }
+    .ams-messagelog__inmsg {
+        font-family: monospace;
+        color: #c15858;
+        display: block;
+        white-space: pre;
+    }
+    .ams-messagelog__outmsg {
+        font-family: monospace;
+        color: #3075b7;
+        display: block;
+        white-space: pre;
+    }
 """
