@@ -1,5 +1,6 @@
 module Webbhuset.ActorSystem exposing
     ( AppliedActor
+    , Actor
     , Model
     , SysMsg
     , PID
@@ -47,6 +48,7 @@ Use these to send messages between actors in your system.
 Don't worry about these for now.
 
 @docs AppliedActor
+    , Actor
     , Model
     , SysMsg
     , applyModel
@@ -61,7 +63,6 @@ import Random
 import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Webbhuset.Internal.Msg as Msg exposing (Msg(..), Control(..))
-import Webbhuset.Actor as Actor exposing (Actor)
 
 
 {-| A PID is an identifier for a Process.
@@ -256,7 +257,7 @@ type alias ApplicationImpl flags name appModel appMsg =
 {-| Apply the compModel to an actor.
 
 -}
-applyModel : Actor compModel appModel msg -> compModel -> AppliedActor appModel msg
+applyModel : Actor compModel appModel (Html msg) msg -> compModel -> AppliedActor appModel msg
 applyModel actor model =
     AppliedActor
         { init = actor.init
@@ -265,6 +266,19 @@ applyModel actor model =
         , kill = actor.kill model
         , subs = actor.subs model
         }
+
+
+{-| An actor is a component that is configured to be part of the system.
+
+-}
+type alias Actor compModel appModel output msg =
+    { init : PID -> ( appModel, msg )
+    , update : compModel -> msg -> PID -> ( appModel, msg )
+    , view : compModel -> PID -> (PID -> output) -> output
+    , kill : compModel -> PID -> msg
+    , subs : compModel -> PID -> Sub msg
+    }
+
 
 {-| Create a [Browser.element] from your Actor System
 
