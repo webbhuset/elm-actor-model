@@ -237,6 +237,7 @@ type alias ElementImpl flags name appModel appMsg =
     { init : flags -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , view : List (Html (SysMsg name appMsg)) -> Html (SysMsg name appMsg)
     }
 
 
@@ -274,6 +275,7 @@ element :
     { init : flags -> SysMsg name appMsg
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel (SysMsg name appMsg)
+    , view : List (Html (SysMsg name appMsg)) -> Html (SysMsg name appMsg)
     }
     -> Program flags (Model name appModel) (SysMsg name appMsg)
 element impl =
@@ -281,7 +283,7 @@ element impl =
         { init = initElement impl
         , update = update impl
         , subscriptions = subscriptions impl
-        , view = view impl
+        , view = impl.view << view impl
         }
 
 
@@ -303,7 +305,7 @@ application impl =
         { init = initApplication impl
         , update = update impl
         , subscriptions = subscriptions impl
-        , view = view impl >> (\html -> { title = "", body = [ html ] })
+        , view = view impl >> (\html -> { title = "", body = html })
         , onUrlRequest = impl.onUrlRequest
         , onUrlChange = impl.onUrlChange
         }
@@ -578,7 +580,7 @@ subscriptions impl (Model model) =
         |> Sub.batch
 
 
-view : Impl name appModel appMsg a -> Model name appModel -> Html (SysMsg name appMsg)
+view : Impl name appModel appMsg a -> Model name appModel -> List (Html (SysMsg name appMsg))
 view impl (Model model) =
     model.views
         |> List.map
@@ -592,7 +594,6 @@ view impl (Model model) =
                 )
                 model.instances
             )
-        |> Html.div []
 
 
 renderPID : (appModel -> PID -> (PID -> Html msg) -> Html msg) -> Dict Int appModel -> PID -> Html msg

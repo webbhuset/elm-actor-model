@@ -97,7 +97,7 @@ import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
 import Webbhuset.Component as Component
-import Webbhuset.Internal.Msg as Msg exposing (Control(..))
+import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID
 
 type alias SysMsg name appMsg =

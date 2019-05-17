@@ -99,7 +99,6 @@ component is in a state where it can't process them at this point, eg. an InitSt
     , runQueue
 -}
 import Html exposing (Html)
-import Html.Lazy as Html
 import Webbhuset.Internal.PID as PID
 import Task
 import Process
