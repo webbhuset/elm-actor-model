@@ -845,7 +845,7 @@ view config toSelf model renderPID =
                         ]
                     )
             )
-        , Html.hr [] []
+        , Html.hr [ HA.class "ams-hr" ] []
         , Html.div
             []
             ( model.displayCase
