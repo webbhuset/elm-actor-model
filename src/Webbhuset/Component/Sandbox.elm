@@ -41,8 +41,12 @@ import Html.Events as Events
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
+import Webbhuset.Component.Navigation as Navigation
 import Webbhuset.Internal.PID exposing (PID(..))
 import Webbhuset.PID as PID
+import Browser.Navigation as Nav
+import Browser
+import Url exposing (Url)
 
 
 {-| The Application model
@@ -117,17 +121,46 @@ ui args =
                 }
                 args.component
     in
-    System.element
+    System.application
         { init = initApp args.title
         , spawn = spawn args.stringifyMsgIn args.cases testedActor
         , apply = applyModel args.stringifyMsgIn args.cases testedActor
+        , onUrlRequest =
+            \urlRequest ->
+                case urlRequest of
+                    Browser.Internal url ->
+                        Url.toString url
+                            |> Navigation.Push
+                            |> NavMsg
+                            |> System.toAppMsg
+                            |> System.sendToSingleton Navigation
+
+                    Browser.External str ->
+                        str
+                            |> Navigation.Load
+                            |> NavMsg
+                            |> System.toAppMsg
+                            |> System.sendToSingleton Navigation
+        , onUrlChange =
+            UrlChanged
+                >> DevMsg
+                >> System.toAppMsg
+                >> System.sendToSingleton DevActor
         }
 
 
-initApp : String -> () -> Msg msgIn
-initApp title _ =
+initApp : String -> () -> Url -> Nav.Key -> Msg msgIn
+initApp title _ url key =
     System.batch
         [ System.withSingletonPID DevActor System.addView
+        , Navigation.Init key url
+            |> NavMsg
+            |> System.toAppMsg
+            |> System.sendToSingleton Navigation
+        , UrlChanged url
+            |> DevMsg
+            |> System.toAppMsg
+            |> System.sendToSingleton DevActor
         , SetTitle title
               |> DevMsg
               |> System.toAppMsg
@@ -163,11 +196,13 @@ testedMapOut toString pid componentMsg =
 type ActorName
     = DevActor
     | TestedActor
+    | Navigation
 
 
 type Process model msgIn
     = P_Dev (DevModel msgIn)
     | P_Component model
+    | P_Nav Navigation.Model
 
 
 type alias Msg msgIn =
@@ -177,6 +212,7 @@ type alias Msg msgIn =
 type AppMsg msgIn
     = DevMsg MsgIn
     | ComponentMsg msgIn
+    | NavMsg Navigation.MsgIn
 
 
 spawn : (msgIn -> String)
@@ -193,6 +229,9 @@ spawn toString tests tested name =
         TestedActor ->
             tested.init
 
+        Navigation ->
+            navigation.init
+
 
 applyModel :
     (msgIn -> String)
@@ -208,7 +247,38 @@ applyModel toString tests testedActor process =
         P_Component model ->
             System.applyModel testedActor model
 
+        P_Nav model ->
+            System.applyModel navigation model
 
+
+-- Navigation
+
+navigation : Actor Navigation.Model (Process model msgIn) (Msg msgIn)
+navigation =
+    Actor.fromService
+        { wrapModel = P_Nav
+        , wrapMsg = NavMsg
+        , mapIn = navigationMapIn
+        , mapOut = navigationMapOut
+        }
+        Navigation.component
+
+
+navigationMapIn : AppMsg msgIn -> Maybe Navigation.MsgIn
+navigationMapIn appMsg =
+    case appMsg of
+        NavMsg msg ->
+            Just msg
+
+        _ ->
+            Nothing
+
+
+navigationMapOut : PID -> Navigation.MsgOut -> Msg msgIn
+navigationMapOut self componentMsg =
+    case componentMsg of
+        Navigation.NoOut ->
+            System.none
 
 -- Test Runner Actor
 
@@ -288,6 +358,7 @@ type alias DevModel msgIn =
     , cases : Dict Int (TestCase msgIn)
     , pids : Dict Int Child
     , messages : Dict String (List Message)
+    , displayCase : Maybe Int
     , bgColor : String
     , title : String
     }
@@ -305,6 +376,7 @@ type MsgIn
     | SetBg String
     | SetTitle String
     | AddMsg PID Message
+    | UrlChanged Url
 
 
 type MsgOut msgIn
@@ -325,6 +397,7 @@ init cases pid =
             List.indexedMap (\idx test -> ( idx, test )) cases
                 |> Dict.fromList
       , pids = Dict.empty
+      , displayCase = Nothing
       , messages = Dict.empty
       , bgColor = "#fff"
       , title = ""
@@ -398,6 +471,23 @@ update msgIn model =
             , Cmd.none
             )
 
+        UrlChanged url ->
+            case Maybe.map (String.split "/") url.fragment of
+                Just [ "testcase", n ] ->
+                    let
+                        idx =
+                            String.toInt n
+                    in
+                    ( { model | displayCase = idx }
+                    , []
+                    , Cmd.none
+                    )
+                _ ->
+                    ( { model | displayCase = Nothing }
+                    , []
+                    , Cmd.none
+                    )
+
 
 
 -- VIEW
@@ -405,6 +495,11 @@ update msgIn model =
 
 view : (MsgIn -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
 view toSelf model renderPID =
+    let
+        testCases =
+            model.cases
+                |> Dict.toList
+    in
     Html.div
         []
         [ Html.node "style" [] [ Html.text css ]
@@ -428,22 +523,62 @@ view toSelf model renderPID =
                     ]
                 ]
             ]
+        , Html.div
+            [
+            ]
+            (testCases
+                |> List.map
+                    (\( idx, testCase ) ->
+                        Html.div
+                            []
+                            [ Html.a
+                                [ HA.href ("#testcase/" ++ (String.fromInt idx))
+                                ]
+                                [ Html.text testCase.title
+                                ]
+                            ]
+                    )
+                |> (::)
+                    ( Html.a
+                        [ HA.href "#"
+                        ]
+                        [ Html.text " -- All test cases --"
+                        ]
+                    )
+            )
         , Html.hr [] []
         , Html.div
             []
-            (model.cases
-                |> Dict.toList
-                |> List.map
-                    (\( idx, testCase ) ->
-                        let
-                            child =
-                                Dict.get idx model.pids
-                        in
-                        Maybe.map (renderChild model toSelf renderPID idx testCase) child
-                            |> Maybe.withDefault (Html.text "")
+            ( model.displayCase
+                |> Maybe.andThen
+                    (\idx ->
+                        Dict.get idx model.cases
+                            |> Maybe.map
+                                (\testCase ->
+                                    let
+                                        child =
+                                            Dict.get idx model.pids
+                                    in
+                                    Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                                        |> Maybe.withDefault (Html.text "")
+                                        |> List.singleton
+                                )
+                    )
+                |> Maybe.withDefault
+                    ( testCases
+                        |> List.map
+                            (\( idx, testCase ) ->
+                                let
+                                    child =
+                                        Dict.get idx model.pids
+                                in
+                                Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                                    |> Maybe.withDefault (Html.text "")
+                            )
                     )
             )
         ]
+
 
 
 renderChild : DevModel m -> (MsgIn -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
