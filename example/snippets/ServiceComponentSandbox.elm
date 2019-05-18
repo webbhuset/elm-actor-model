@@ -8,35 +8,17 @@ import ServiceComponent as ComponentAlias
 
 main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
 main =
-    Sandbox.ui
+    Sandbox.service
         { title = "Title of Component"
-        , component = component
+        , component = ComponentAlias.component ()
         , cases =
             [ test_init
             ]
+        , view = view
         , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
         , stringifyMsgOut = Debug.toString
         }
 
-
-{-| To test a service component, convert it to a UI Component by adding a view function.
-
--}
-component : Component.UI ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
-component =
-    let
-        compiletimeConfig =
-            ()
-
-        testedComponent =
-            ComponentAlias.component compiletimeConfig
-    in
-    { init = testedComponent.init
-    , update = testedComponent.update
-    , kill = testedComponent.kill
-    , subs = testedComponent.subs
-    , view = view
-    }
 
 
 test_init : Sandbox.TestCase ComponentAlias.MsgIn
@@ -48,7 +30,7 @@ test_init =
 
 You can use Markdown
         """
-        [ ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
+        [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]
 
 

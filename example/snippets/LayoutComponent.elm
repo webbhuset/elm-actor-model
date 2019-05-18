@@ -12,6 +12,7 @@ import Webbhuset.Component as Component exposing (PID)
 
 type MsgIn
     = NoIn
+    | ReceiveChild PID
 
 
 type MsgOut
@@ -20,6 +21,7 @@ type MsgOut
 
 type alias Model =
     { pid : PID
+    , children : List PID
     }
 
 
@@ -40,6 +42,7 @@ component =
 init : PID -> ( Model , List MsgOut, Cmd MsgIn )
 init pid =
     ( { pid = pid
+      , children = []
       }
     , []
     , Cmd.none
@@ -65,10 +68,19 @@ update msgIn model =
             , Cmd.none
             )
 
+        ReceiveChild pid ->
+            ( { model | children = model.children ++ [ pid ] }
+            , []
+            , Cmd.none
+            )
+
 
 view : (MsgIn -> msg) -> Model -> (PID -> Html msg) -> Html msg
 view toSelf model renderPID =
     Html.div
         []
-        [ Html.text "Layout Component"
+        [ Html.h1 [] [ Html.text "Layout Component" ]
+        , model.children
+            |> List.map renderPID
+            |> Html.div []
         ]

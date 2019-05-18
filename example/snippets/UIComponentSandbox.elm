@@ -28,5 +28,5 @@ test_init =
 
 You can use Markdown
         """
-        [ ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
+        [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]

@@ -2,6 +2,10 @@ module Webbhuset.Component.Sandbox exposing
     ( SandboxProgram
     , TestCase
     , ui
+    , layout
+    , service
+    , sendMsg
+    , spawnLorem
     )
 
 {-|
@@ -15,9 +19,19 @@ run the component using `elm reactor` outside the system and define several test
 
 @docs TestCase
 
-## Sandbox UI Components
+# Create Sandbox
 
-@docs ui
+Wrap a component in a sandbox application.
+
+This will render each test case and log all messages.
+Create a test file with a `main` function where you declare all
+test cases.
+
+@docs ui, layout, service
+
+# Actions
+
+@docs sendMsg, spawnLorem
 
 You can also use the ui sandbox on a Service component.
 Just add a `view` function.
@@ -42,6 +56,7 @@ import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
 import Webbhuset.Component.Navigation as Navigation
+import Webbhuset.Component.LoremIpsum as LoremIpsum
 import Webbhuset.Internal.PID exposing (PID(..))
 import Webbhuset.PID as PID
 import Browser.Navigation as Nav
@@ -71,42 +86,32 @@ when the sandbox is started.
 type alias TestCase msgIn =
     { title : String
     , desc : String
-    , init : List msgIn
+    , init : List (Action msgIn)
     }
 
 
+type Action msgIn
+    = SendMsg msgIn
+    | SpawnLorem (PID -> msgIn)
 
-{-| Spawnable componentes
+
+{-| Spawn a child component and send the PID to your component.
+
 -}
-type Spawnable
-    = LoremIpsum
+spawnLorem : (PID -> msgIn) -> Action msgIn
+spawnLorem =
+    SpawnLorem
 
 
-{-| Wrap a component in a sandbox application.
+{-| Send a message to you tested component
 
-This will render each test case and log all messages.
-Create a test file with a `main` function where you declare all
-test cases.
+-}
+sendMsg : msgIn -> Action msgIn
+sendMsg =
+    SendMsg
 
-    import Component.Form as Form
-    import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
 
-    main : SandboxProgram Form.Model Form.MsgIn
-    main =
-        Sandbox.ui
-            Form.component
-            "Form Component"
-            [ Sandbox.TestCase
-                "Empty form"
-                "Submit-button should be disabled"
-                [
-                ]
-            , Sandbox.TestCase
-                "Form with Errors"
-                "You should see an error message"
-                [ Form.ErrorMsg "Error message"
-                ]
-            ]
+{-| Sandbox a UI Component
 
 -}
 ui :
@@ -118,16 +123,70 @@ ui :
     }
     -> SandboxProgram model msgIn
 ui args =
-    let
-        testedActor =
-            Actor.fromUI
-                { wrapModel = P_Component
-                , wrapMsg = ComponentMsg
-                , mapIn = testedMapIn
-                , mapOut = testedMapOut args.stringifyMsgOut
-                }
-                args.component
-    in
+    Actor.fromUI
+        { wrapModel = P_Component
+        , wrapMsg = ComponentMsg
+        , mapIn = testedMapIn
+        , mapOut = testedMapOut args.stringifyMsgOut
+        }
+        args.component
+        |> toApplication args
+
+
+{-| Sandbox a Layout Component
+
+-}
+layout :
+    { title : String
+    , component : Component.Layout model msgIn msgOut (Msg msgIn)
+    , cases : List (TestCase msgIn)
+    , stringifyMsgIn : msgIn -> String
+    , stringifyMsgOut : msgOut -> String
+    }
+    -> SandboxProgram model msgIn
+layout args =
+    Actor.fromLayout
+        { wrapModel = P_Component
+        , wrapMsg = ComponentMsg
+        , mapIn = testedMapIn
+        , mapOut = testedMapOut args.stringifyMsgOut
+        }
+        args.component
+        |> toApplication args
+
+
+{-| Sandbox a Service Component
+
+You need to provied a `view` function which renders the model of
+your service component.
+
+-}
+service :
+    { title : String
+    , component : Component.Service model msgIn msgOut
+    , cases : List (TestCase msgIn)
+    , view : model -> Html msgIn
+    , stringifyMsgIn : msgIn -> String
+    , stringifyMsgOut : msgOut -> String
+    }
+    -> SandboxProgram model msgIn
+service args =
+    Actor.fromUI
+        { wrapModel = P_Component
+        , wrapMsg = ComponentMsg
+        , mapIn = testedMapIn
+        , mapOut = testedMapOut args.stringifyMsgOut
+        }
+        { init = args.component.init
+        , update = args.component.update
+        , kill = args.component.kill
+        , subs = args.component.subs
+        , view = args.view
+        }
+        |> toApplication args
+
+
+toApplication args testedActor =
     System.application
         { init = initApp args.title
         , spawn = spawn args.stringifyMsgIn args.cases testedActor
@@ -205,12 +264,14 @@ type ActorName
     = DevActor
     | TestedActor
     | Navigation
+    | LoremIpsum
 
 
 type Process model msgIn
     = P_Dev (DevModel msgIn)
     | P_Component model
     | P_Nav Navigation.Model
+    | P_LoremIpsum LoremIpsum.Model
 
 
 type alias Msg msgIn =
@@ -221,6 +282,7 @@ type AppMsg msgIn
     = DevMsg MsgIn
     | ComponentMsg msgIn
     | NavMsg Navigation.MsgIn
+    | LoremIpsumMsg LoremIpsum.MsgIn
 
 
 spawn : (msgIn -> String)
@@ -229,16 +291,19 @@ spawn : (msgIn -> String)
     -> ActorName
     -> PID
     -> ( Process model msgIn, Msg msgIn )
-spawn toString tests tested name =
+spawn toString cases tested name =
     case name of
         DevActor ->
-            .init (actor toString tests)
+            .init (actor toString cases)
 
         TestedActor ->
             tested.init
 
         Navigation ->
             navigation.init
+
+        LoremIpsum ->
+            loremIpsum.init
 
 
 applyModel :
@@ -247,10 +312,10 @@ applyModel :
     -> Actor model (Process model msgIn) (Msg msgIn)
     -> Process model msgIn
     -> System.AppliedActor (Process model msgIn) (Html (Msg msgIn)) (Msg msgIn)
-applyModel toString tests testedActor process =
+applyModel toString cases testedActor process =
     case process of
         P_Dev model ->
-            System.applyModel (actor toString tests) model
+            System.applyModel (actor toString cases) model
 
         P_Component model ->
             System.applyModel testedActor model
@@ -258,6 +323,30 @@ applyModel toString tests testedActor process =
         P_Nav model ->
             System.applyModel navigation model
 
+        P_LoremIpsum model ->
+            System.applyModel loremIpsum model
+
+-- Lorem Ipsum
+
+loremIpsum : Actor LoremIpsum.Model (Process model msgIn) (Msg msgIn)
+loremIpsum =
+    Actor.fromUI
+        { wrapModel = P_LoremIpsum
+        , wrapMsg = LoremIpsumMsg
+        , mapIn = loremIpsumMapIn
+        , mapOut = \_ _ -> System.none
+        }
+        LoremIpsum.component
+
+
+loremIpsumMapIn : AppMsg msgIn -> Maybe LoremIpsum.MsgIn
+loremIpsumMapIn appMsg =
+    case appMsg of
+        LoremIpsumMsg msg ->
+            Just msg
+
+        _ ->
+            Nothing
 
 -- Navigation
 
@@ -292,14 +381,19 @@ navigationMapOut self componentMsg =
 
 
 actor : (msgIn -> String) -> List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
-actor toString tests =
+actor toString cases =
     Actor.fromLayout
         { wrapModel = P_Dev
         , wrapMsg = DevMsg
         , mapIn = mapIn
         , mapOut = mapOut toString
         }
-        (component tests)
+        (component
+            { cases =
+                List.indexedMap Tuple.pair cases
+                    |> Dict.fromList
+            }
+        )
 
 
 mapIn : AppMsg msgIn -> Maybe MsgIn
@@ -322,32 +416,56 @@ mapOut toString p componentMsg =
                 >> System.sendToPID replyPID
                 |> System.spawn TestedActor
 
-        SendTo pid msg ->
-            System.batch
-                [ toString msg
-                    |> InMessage
-                    |> AddMsg pid
-                    |> DevMsg
-                    |> System.toAppMsg
-                    |> System.sendToSingleton DevActor
-                , ComponentMsg msg
-                    |> System.toAppMsg
-                    |> System.sendToPID pid
-                ]
-
         SetPageTitle title ->
             System.setDocumentTitle title
+
+        PerformAction subject action ->
+            case action of
+                SendMsg msg ->
+                    System.batch
+                        [ toString msg
+                            |> InMessage
+                            |> AddMsg subject
+                            |> DevMsg
+                            |> System.toAppMsg
+                            |> System.sendToSingleton DevActor
+                        , ComponentMsg msg
+                            |> System.toAppMsg
+                            |> System.sendToPID subject
+                        ]
+
+                SpawnLorem reply ->
+                    System.spawn LoremIpsum
+                        (\newPid ->
+                            System.batch
+                                [ reply newPid
+                                    |> ComponentMsg
+                                    |> System.toAppMsg
+                                    |> System.sendToPID subject
+                                , reply newPid
+                                    |> toString
+                                    |> InMessage
+                                    |> AddMsg subject
+                                    |> DevMsg
+                                    |> System.toAppMsg
+                                    |> System.sendToSingleton DevActor
+                                ]
+                        )
 
 
 
 -- Test Runner Component
 
+type alias Config msgIn =
+    { cases : Dict Int (TestCase msgIn)
+    }
 
-component : List (TestCase msgIn) -> Component.Layout (DevModel msgIn) MsgIn (MsgOut msgIn) msg
-component tests =
-    { init = init tests
-    , update = update
-    , view = view
+
+component : Config msgIn -> Component.Layout (DevModel msgIn) MsgIn (MsgOut msgIn) msg
+component config =
+    { init = init config
+    , update = update config
+    , view = view config
     , kill = kill
     , subs = always Sub.none
     }
@@ -392,8 +510,8 @@ type MsgIn
 
 type MsgOut msgIn
     = Spawn PID (PID -> MsgIn)
-    | SendTo PID msgIn
     | SetPageTitle String
+    | PerformAction PID (Action msgIn)
 
 
 
@@ -402,21 +520,20 @@ type MsgOut msgIn
 --
 
 
-init : List (TestCase msgIn) -> PID -> ( DevModel msgIn, List (MsgOut msgIn), Cmd MsgIn )
-init cases pid =
+init : Config msgIn -> PID -> ( DevModel msgIn, List (MsgOut msgIn), Cmd MsgIn )
+init config pid =
     ( { pid = pid
-      , cases =
-            List.indexedMap (\idx test -> ( idx, test )) cases
-                |> Dict.fromList
+      , cases = config.cases
       , pids = Dict.empty
       , displayCase = Nothing
       , messages = Dict.empty
       , bgColor = "#fff"
       , title = ""
       }
-    , cases
-        |> List.indexedMap
-            (\idx child ->
+    , config.cases
+        |> Dict.keys
+        |> List.map
+            (\idx ->
                 Spawn pid (NewPID idx)
             )
     , Cmd.none
@@ -428,16 +545,13 @@ kill model =
     []
 
 
-update : MsgIn -> DevModel msgIn -> ( DevModel msgIn, List (MsgOut msgIn), Cmd MsgIn )
-update msgIn model =
+update : Config msgIn -> MsgIn -> DevModel msgIn -> ( DevModel msgIn, List (MsgOut msgIn), Cmd MsgIn )
+update config msgIn model =
     case msgIn of
         NewPID idx pid ->
             ( { model | pids = Dict.insert idx (Child pid) model.pids }
-            , Dict.get idx model.cases
-                |> Maybe.map
-                    (\test ->
-                        List.map (SendTo pid) test.init
-                    )
+            , Dict.get idx config.cases
+                |> Maybe.map (\testCase -> List.map (PerformAction pid) testCase.init)
                 |> Maybe.withDefault []
             , Cmd.none
             )
@@ -514,8 +628,8 @@ update msgIn model =
 -- VIEW
 
 
-view : (MsgIn -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
-view toSelf model renderPID =
+view : Config msgIn -> (MsgIn -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
+view config toSelf model renderPID =
     let
         testCases =
             model.cases
