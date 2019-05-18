@@ -26,6 +26,10 @@ This will render each test case and log all messages.
 Create a test file with a `main` function where you declare all
 test cases.
 
+    module YourComponentSandbox exposing (..)
+
+    import YourComponent
+
     main : SandboxProgram YourComponent.Model YourComponent.MsgIn
     main =
         Sandbox.ui
@@ -45,7 +49,7 @@ test cases.
 # Create a Test Case
 
 A Test Case is just a record with a title and description together
-with a list of Actions you want to perform on your tested component.
+with a list of Actions you want to perform on your sandboxed component.
 
 @docs TestCase
 
@@ -123,7 +127,7 @@ spawnChild =
     SpawnLorem
 
 
-{-| Send a message to you tested component
+{-| Send a message to you sandboxed component
 
 -}
 sendMsg : msgIn -> Action msgIn
