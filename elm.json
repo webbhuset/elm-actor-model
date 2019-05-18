@@ -8,11 +8,13 @@
         "Components": [
             "Webbhuset.Component",
             "Webbhuset.Component.Sandbox",
+            "Webbhuset.Component.ElmUI",
             "Webbhuset.PID",
             "Webbhuset.PID.Set"
         ],
         "Actor System": [
             "Webbhuset.Actor",
+            "Webbhuset.Actor.ElmUI",
             "Webbhuset.ActorSystem"
         ]
     },
