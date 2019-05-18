@@ -14,10 +14,20 @@ main =
         , cases =
             [ test_init
             ]
-        , view = view
         , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
         , stringifyMsgOut = Debug.toString
+        , view = view
         }
+
+
+
+{-| Sometimes it is useful to render some internals of your
+service component's model.
+
+-}
+view : ComponentAlias.Model -> Html ComponentAlias.MsgIn
+view model =
+    Html.text "Hello"
 
 
 
@@ -32,10 +42,5 @@ You can use Markdown
         """
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]
-
-
-view : ComponentAlias.Model -> Html ComponentAlias.MsgIn
-view model =
-    Html.text "Hello"
 
 

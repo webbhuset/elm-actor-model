@@ -4,6 +4,7 @@ import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
 import Webbhuset.Component as Component
 import Webbhuset.PID as PID
 import Html exposing (Html)
+import Html.Attributes as HA
 import LayoutComponent as ComponentAlias
 
 
@@ -17,12 +18,31 @@ main =
             ]
         , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
         , stringifyMsgOut = Debug.toString
+        , wrapView = view
         }
 
 
-{-| To test a layout component, convert it to a UI Component by changing the view function.
+{-| You can wrap the output of your component.
 
+This is useful when you want to add CSS style or some extra test buttons.
 -}
+view : (ComponentAlias.MsgIn -> msg) -> Html msg -> Html msg
+view toSelf componentHtml =
+    Html.div
+        [ HA.class "component"
+        ]
+        [ Html.node "style" [] [ Html.text css ]
+        , componentHtml
+        ]
+
+
+css : String
+css =
+    """
+.component {
+    font-family: monospace;
+}
+"""
 
 
 test_init : Sandbox.TestCase ComponentAlias.MsgIn
