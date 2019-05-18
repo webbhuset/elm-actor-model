@@ -109,6 +109,78 @@ type alias SysMsg name appMsg =
 
 
 
+{-| The Global Model
+
+-}
+type Model name appModel =
+    Model (ModelRecord name appModel)
+
+
+type alias ModelRecord name appModel =
+    { instances : Dict Int appModel
+    , lastPID : Int
+    , prefix : String
+    , singleton : List ( name, PID )
+    , views : List PID
+    , documentTitle : String
+    }
+
+
+{-| An actor is a component that is configured to be part of the system.
+
+-}
+type alias Actor compModel appModel output msg =
+    { init : PID -> ( appModel, msg )
+    , update : compModel -> msg -> PID -> ( appModel, msg )
+    , view : compModel -> PID -> (PID -> Maybe output) -> output
+    , kill : compModel -> PID -> msg
+    , subs : compModel -> PID -> Sub msg
+    }
+
+
+{-| An actor after the model has been applied
+
+-}
+type AppliedActor appModel output msg =
+    AppliedActor
+        { init : PID -> ( appModel, msg )
+        , update : msg -> PID -> ( appModel, msg )
+        , view : PID -> (PID -> Maybe output) -> output
+        , kill : PID -> msg
+        , subs : PID -> Sub msg
+        }
+
+
+type alias Impl name appModel output appMsg a =
+    { a
+        | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+        , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    }
+
+
+{-| The implementation of a Browser.element program
+
+-}
+type alias ElementImpl flags name appModel output appMsg =
+    { init : flags -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    }
+
+
+{-| The implementation of a Browser.application program
+
+-}
+type alias ApplicationImpl flags name appModel output appMsg =
+    { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
+    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
+    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+    , view : List output -> Html (SysMsg name appMsg)
+    , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
+    , onUrlChange : Url -> SysMsg name appMsg
+    }
+
 {-| Don't send or do anything.
 
 Similar concept to `Cmd.none`
@@ -238,66 +310,6 @@ withSingletonPID name toMsg =
     Ctrl (WithSingletonPID name toMsg)
 
 
-{-| The Global Model
-
--}
-type Model name appModel =
-    Model (ModelRecord name appModel)
-
-
-type alias ModelRecord name appModel =
-    { instances : Dict Int appModel
-    , lastPID : Int
-    , prefix : String
-    , singleton : List ( name, PID )
-    , views : List PID
-    , documentTitle : String
-    }
-
-
-{-| An actor after the model has been applied
-
--}
-type AppliedActor appModel output msg =
-    AppliedActor
-        { init : PID -> ( appModel, msg )
-        , update : msg -> PID -> ( appModel, msg )
-        , view : PID -> (PID -> Maybe output) -> output
-        , kill : PID -> msg
-        , subs : PID -> Sub msg
-        }
-
-
-type alias Impl name appModel output appMsg a =
-    { a
-        | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-        , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
-    }
-
-
-{-| The implementation of a Browser.element program
-
--}
-type alias ElementImpl flags name appModel output appMsg =
-    { init : flags -> SysMsg name appMsg
-    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
-    , view : List output -> Html (SysMsg name appMsg)
-    }
-
-
-{-| The implementation of a Browser.application program
-
--}
-type alias ApplicationImpl flags name appModel output appMsg =
-    { init : flags -> Url -> Nav.Key -> SysMsg name appMsg
-    , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
-    , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
-    , view : List output -> Html (SysMsg name appMsg)
-    , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
-    , onUrlChange : Url -> SysMsg name appMsg
-    }
-
 
 {-| Apply the compModel to an actor.
 
@@ -311,18 +323,6 @@ applyModel actor model =
         , kill = actor.kill model
         , subs = actor.subs model
         }
-
-
-{-| An actor is a component that is configured to be part of the system.
-
--}
-type alias Actor compModel appModel output msg =
-    { init : PID -> ( appModel, msg )
-    , update : compModel -> msg -> PID -> ( appModel, msg )
-    , view : compModel -> PID -> (PID -> Maybe output) -> output
-    , kill : compModel -> PID -> msg
-    , subs : compModel -> PID -> Sub msg
-    }
 
 
 {-| Create a [Browser.element] from your Actor System
