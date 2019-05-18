@@ -66,7 +66,7 @@ its name instead of its PID.
 
 You Elm program's Html output (view function) is controlled here.
 You need to add at least one process to actually see anything more
-than a blank page.
+than just a blank page.
 
 @docs addView
     , setDocumentTitle

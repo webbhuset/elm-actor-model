@@ -184,16 +184,21 @@ layout :
     , cases : List (TestCase msgIn)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
+    , wrapView : (msgIn -> Msg msgIn) -> Html (Msg msgIn) -> Html (Msg msgIn)
     }
     -> SandboxProgram model msgIn
-layout args =
+layout ({ component } as args) =
     Actor.fromLayout
         { wrapModel = P_Component
         , wrapMsg = ComponentMsg
         , mapIn = testedMapIn
         , mapOut = testedMapOut args.stringifyMsgOut
         }
-        args.component
+        { component
+            | view = \toSelf model renderPID ->
+                (component.view toSelf model renderPID)
+                    |> args.wrapView toSelf
+        }
         |> toApplication args
 
 
