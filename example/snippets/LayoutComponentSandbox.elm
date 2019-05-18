@@ -1,6 +1,6 @@
 module LayoutComponentSandbox exposing (..)
 
-import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram, Action)
+import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
 import Webbhuset.Component as Component
 import Webbhuset.PID as PID
 import Html exposing (Html)
@@ -35,7 +35,7 @@ test_init =
 You can use Markdown
         """
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
-        , Sandbox.spawnLorem ComponentAlias.ReceiveChild
+        , Sandbox.spawnChild ComponentAlias.ReceiveChild
         ]
 
 

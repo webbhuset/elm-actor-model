@@ -82,7 +82,8 @@ update msgIn model =
 view : Model -> Html MsgIn
 view model =
     Html.div
-        []
+        [ HA.style "border" "solid 1px black"
+        ]
         [ Html.button
             [ Events.onClick Less
             ]

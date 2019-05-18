@@ -5,7 +5,7 @@ module Webbhuset.Component.Sandbox exposing
     , layout
     , service
     , sendMsg
-    , spawnLorem
+    , spawnChild
     )
 
 {-|
@@ -17,7 +17,6 @@ run the component using `elm reactor` outside the system and define several test
 
 @docs SandboxProgram
 
-@docs TestCase
 
 # Create Sandbox
 
@@ -27,25 +26,42 @@ This will render each test case and log all messages.
 Create a test file with a `main` function where you declare all
 test cases.
 
+    main : SandboxProgram YourComponent.Model YourComponent.MsgIn
+    main =
+        Sandbox.ui
+            { title = "Title of your component"
+            , component = YourComponent.component
+            , cases =
+                [ testCase1
+                , testCase2
+                ]
+            , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
+            , stringifyMsgOut = Debug.toString
+            }
+
+
 @docs ui, layout, service
 
-# Actions
+# Create a Test Case
 
-@docs sendMsg, spawnLorem
+A Test Case is just a record with a title and description together
+with a list of Actions you want to perform on your tested component.
 
-You can also use the ui sandbox on a Service component.
-Just add a `view` function.
+@docs TestCase
 
-    { init = service.init
-    , update = service.update
-    , kill = service.kill
-    , subs = service.subs
-    , view = view
-    }
+    testCase1 : Sandbox.TestCase YourComponent.MsgIn
+    testCase1 =
+        Sandbox.TestCase
+            "Test Case Title"
+            "Test Case Description"
+            [ Sandbox.sendMsg YourComponent.Hello
+            , Sandbox.spawnChild YourComponent.ReceiveChildPID
+            ]
 
-    view : Model -> Html MsgIn
-    view model =
-        Html.text "Service Component"
+## Actions
+
+@docs sendMsg, spawnChild
+
 -}
 
 import Dict exposing (Dict)
@@ -98,8 +114,8 @@ type Action msgIn
 {-| Spawn a child component and send the PID to your component.
 
 -}
-spawnLorem : (PID -> msgIn) -> Action msgIn
-spawnLorem =
+spawnChild : (PID -> msgIn) -> Action msgIn
+spawnChild =
     SpawnLorem
 
 
