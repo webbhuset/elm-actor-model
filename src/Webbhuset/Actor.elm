@@ -100,6 +100,7 @@ import Webbhuset.Component as Component
 import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID
 import Webbhuset.ActorSystem as System
+import Webbhuset.Internal.Actor exposing (Args, wrapKill, wrapSub, wrapInit, wrapUpdate)
 
 type alias SysMsg name appMsg =
     Msg.Msg name appMsg
@@ -139,7 +140,7 @@ fromLayout :
     -> Actor compModel appModel (SysMsg name appMsg)
 fromLayout args component =
     { init = wrapInit args component.init
-    , update = wrapRecv args component.update
+    , update = wrapUpdate args component.update
     , view = layoutView args component.view
     , kill = wrapKill args.mapOut component.kill
     , subs = wrapSub args.wrapMsg component.subs
@@ -167,18 +168,6 @@ layoutView args view model pid renderPID =
         (renderPID >> Maybe.withDefault (Html.text ""))
 
 
-wrapKill : (PID -> msgOut -> SysMsg name appMsg)
-    -> (compModel -> List msgOut)
-    -> compModel
-    -> PID
-    -> SysMsg name appMsg
-wrapKill mapOut kill model pid =
-    kill model
-        |> List.map (mapOut pid)
-        |> Msg.Batch
-        |> Msg.Ctrl
-
-
 {-| Create an actor from a UI Component
 
 
@@ -193,7 +182,7 @@ fromUI :
     -> Actor compModel appModel (SysMsg name appMsg)
 fromUI args component =
     { init = wrapInit args component.init
-    , update = wrapRecv args component.update
+    , update = wrapUpdate args component.update
     , view = uiView args component.view
     , kill = wrapKill args.mapOut component.kill
     , subs = wrapSub args.wrapMsg component.subs
@@ -234,7 +223,7 @@ fromService :
     -> Actor compModel appModel (SysMsg name appMsg)
 fromService args component =
     { init = wrapInit args component.init
-    , update = wrapRecv args component.update
+    , update = wrapUpdate args component.update
     , view = serviceView
     , kill = wrapKill args.mapOut component.kill
     , subs = wrapSub args.wrapMsg component.subs
@@ -246,86 +235,3 @@ serviceView _ _ _ =
     Html.text ""
 
 
-wrapSub :
-    (msgIn -> appMsg)
-    -> (compModel -> Sub msgIn)
-    -> compModel
-    -> PID
-    -> Sub (SysMsg name appMsg)
-wrapSub toSelf subs model pid =
-    let
-        sub =
-            subs model
-    in
-    if sub == Sub.none then
-        Sub.none
-
-    else
-        Sub.map
-            (toSelf
-                >> Msg.AppMsg
-                >> Msg.SendToPID pid
-                >> Msg.Ctrl
-            )
-            sub
-
-
-wrapInit : Args name compModel appModel msgIn msgOut appMsg
-    -> (PID -> ( compModel, List msgOut, Cmd msgIn ))
-    -> PID
-    -> ( appModel, SysMsg name appMsg )
-wrapInit args implInit pid =
-    implInit pid
-        |> wrapTriple args pid
-        |> Tuple.mapFirst args.wrapModel
-
-
-wrapTriple : Args name compModel appModel msgIn msgOut appMsg
-    -> PID
-    -> ( compModel, List msgOut, Cmd msgIn )
-    -> ( compModel, SysMsg name appMsg )
-wrapTriple args pid ( model, msgsOut, cmd ) =
-    let
-        msgCmd =
-            if cmd == Cmd.none then
-                Msg.None
-
-            else
-                Cmd.map
-                    (args.wrapMsg
-                        >> Msg.AppMsg
-                        >> Msg.SendToPID pid
-                        >> Msg.Ctrl
-                    )
-                    cmd
-                    |> Msg.Cmd
-                    |> Msg.Ctrl
-
-        msg =
-            List.map (args.mapOut pid) msgsOut
-                |> (::) msgCmd
-                |> Msg.Batch
-                |> Msg.Ctrl
-    in
-    ( model
-    , msg
-    )
-
-
-wrapRecv : Args name compModel appModel msgIn msgOut msg
-    -> (msgIn -> compModel -> ( compModel, List msgOut, Cmd msgIn ))
-    -> (compModel -> SysMsg name msg -> PID -> ( appModel, SysMsg name msg ))
-wrapRecv args update model msg pid =
-    case msg of
-        Msg.AppMsg appMsg ->
-            case args.mapIn appMsg of
-                Just msgIn ->
-                    update msgIn model
-                        |> wrapTriple args pid
-                        |> Tuple.mapFirst args.wrapModel
-
-                Nothing ->
-                    ( args.wrapModel model, Msg.UnmappedMsg appMsg )
-
-        _ ->
-            ( args.wrapModel model, Msg.None )

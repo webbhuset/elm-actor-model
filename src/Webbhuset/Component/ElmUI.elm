@@ -26,6 +26,8 @@ module Webbhuset.Component.ElmUI exposing
 This module has an identical API to Webbhuset.Component
 but with the view functions returning `Element msg`.
 
+Check Webbhuset.Component for more info.
+
 
 @docs UI
 @docs Service
@@ -45,6 +47,7 @@ but with the view functions returning `Element msg`.
 -}
 import Element exposing (Element)
 import Webbhuset.Internal.PID as PID
+import Webbhuset.Component as Component
 import Task
 import Process
 
@@ -69,12 +72,6 @@ type alias Service model msgIn msgOut =
 
 {-| UI Component Type
 
-- **init**: Is called everytime the component is instantiated.
-- **update**: When the component recieves a message.
-- **view**: Is called when the app needs to re-render.
-- **kill**: Is called when the component is no longer needed.
-- **subs**: Normal Elm Subscriptions.
-
 -}
 type alias UI model msgIn msgOut =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
@@ -87,24 +84,6 @@ type alias UI model msgIn msgOut =
 
 {-| Layout Component Type
 
-The `view` function of a layout component:
-
-    view : (MsgIn -> msg) -> Model -> (PID -> Element msg) -> Element msg
-    view toSelf model renderPID =
-        div
-            []
-            [ renderPID model.child
-            , button [ onClick (toSelf ButtonWasClicked) ] [ text "Button!" ]
-            ]
-
-The `view` function has three arguments:
-
-- `toSelf` is used to wrap all event-handlers from Element.Events
-- `renderPID` is used to render other components.
-
-As you can see, the output type of the `view` function is `Element msg`. This is
-necessary to allow components to be composed. What would the return type be on
-`renderPID` if they were not mapped to the same type?
 -}
 type alias Layout model msgIn msgOut msg =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
@@ -118,16 +97,11 @@ type alias Layout model msgIn msgOut msg =
 {-| Store messages in a queue.
 
 -}
-type Queue msgIn =
-    Queue (List msgIn)
+type alias Queue msgIn =
+    Component.Queue msgIn
 
 {-| Run a series of updates on the model
 
-The msgOut's and Cmd's will be composed using `System.batch` and 
-`Cmd.batch`.
-
-    ( model, [], Cmd.none )
-        |> Component.andThen doSomethingWithModel
 -}
 andThen :
     (model -> ( model, List msgOut, Cmd msgIn ))
@@ -173,8 +147,6 @@ mapThird fn ( x, y, a ) =
 
 {-| Add an out message to the output 3-Tuple.
 
-    ( model, [], Cmd.none )
-        |> Component.addOutMsg SomeOutMsg
 -}
 addOutMsg : msg -> ( x, List msg, y ) -> ( x, List msg, y )
 addOutMsg msg ( x, list, y ) =
@@ -183,8 +155,6 @@ addOutMsg msg ( x, list, y ) =
 
 {-| Add a Cmd to the output 3-Tuple.
 
-    ( model, [], Cmd.none )
-        |> Component.addCmd cmd
 -}
 addCmd : Cmd msg -> ( x, y, Cmd msg ) -> ( x, y, Cmd msg )
 addCmd cmd1 ( x, y, cmd0 ) =
@@ -213,40 +183,27 @@ toCmdWithDelay delay msg =
 
 {-| Create an Empty Queue
 
-    { model
-        | queue = Component.emptyQueue
-    }
 -}
 emptyQueue : Queue msgIn
 emptyQueue =
-    Queue []
+    Component.emptyQueue
 
 
 {-| Run the `update` function on all messages in the queue
 and compose all output.
-
-    ( model, [], Cmd.none )
-        |> Component.runQueue queue update
 -}
 runQueue :
     Queue msgIn
     -> (msgIn -> model -> ( model, List msgOut, Cmd msgIn ))
     -> ( model, List msgOut, Cmd msgIn )
     -> ( model, List msgOut, Cmd msgIn )
-runQueue (Queue queuedMsgs) update initial =
-    List.foldr
-        (\qMsg triplet -> andThen (update qMsg) triplet)
-        initial
-        queuedMsgs
+runQueue =
+    Component.runQueue
 
 
 {-| Add a msg to the queue
 
-    { model
-        | queue = Component.addToQueue msgIn model.queue
-    }
 -}
 addToQueue : msgIn -> Queue msgIn -> Queue msgIn
-addToQueue msg (Queue queue) =
-    msg :: queue
-        |> Queue
+addToQueue =
+    Component.addToQueue
