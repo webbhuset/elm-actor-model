@@ -17,6 +17,7 @@ import Random
 type MsgIn
     = More
     | Less
+    | SetText String
 
 
 type MsgOut
@@ -26,6 +27,7 @@ type MsgOut
 type alias Model =
     { pid : PID
     , count : Int
+    , text : String
     }
 
 
@@ -47,6 +49,7 @@ init : PID -> ( Model , List MsgOut, Cmd MsgIn )
 init pid =
     ( { pid = pid
       , count = 10
+      , text = ""
       }
     , []
     , Cmd.none
@@ -78,6 +81,12 @@ update msgIn model =
             , Cmd.none
             )
 
+        SetText str ->
+            ( { model | text = str }
+            , []
+            , Cmd.none
+            )
+
 
 view : Model -> Html MsgIn
 view model =
@@ -97,7 +106,7 @@ view model =
         , Html.div
             [
             ]
-            [ List.repeat model.count "Lorem"
+            [ List.repeat model.count model.text
                 |> String.join " "
                 |> Html.text
             ]

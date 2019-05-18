@@ -55,7 +55,7 @@ with a list of Actions you want to perform on your tested component.
             "Test Case Title"
             "Test Case Description"
             [ Sandbox.sendMsg YourComponent.Hello
-            , Sandbox.spawnChild YourComponent.ReceiveChildPID
+            , Sandbox.spawnChild "Child Title" YourComponent.ReceiveChildPID
             ]
 
 ## Actions
@@ -96,8 +96,6 @@ type alias SandboxProgram model msgIn =
 
 {-| A test case for the Component
 
-Each test case contains a list of in-messages that will be sent to the component
-when the sandbox is started.
 -}
 type alias TestCase msgIn =
     { title : String
@@ -108,13 +106,19 @@ type alias TestCase msgIn =
 
 type Action msgIn
     = SendMsg msgIn
-    | SpawnLorem (PID -> msgIn)
+    | SpawnLorem String (PID -> msgIn)
 
 
 {-| Spawn a child component and send the PID to your component.
 
+You can provide a String which will be displayed when the child
+component is rendered (using `renderPID` in your layout component).
+
+
+    Sandbox.spawnChild "Hello child" YourComponent.ReceiveChild
+
 -}
-spawnChild : (PID -> msgIn) -> Action msgIn
+spawnChild : String -> (PID -> msgIn) -> Action msgIn
 spawnChild =
     SpawnLorem
 
@@ -450,7 +454,7 @@ mapOut toString p componentMsg =
                             |> System.sendToPID subject
                         ]
 
-                SpawnLorem reply ->
+                SpawnLorem title reply ->
                     System.spawn LoremIpsum
                         (\newPid ->
                             System.batch
@@ -458,6 +462,10 @@ mapOut toString p componentMsg =
                                     |> ComponentMsg
                                     |> System.toAppMsg
                                     |> System.sendToPID subject
+                                , LoremIpsum.SetText title
+                                    |> LoremIpsumMsg
+                                    |> System.toAppMsg
+                                    |> System.sendToPID newPid
                                 , reply newPid
                                     |> toString
                                     |> InMessage

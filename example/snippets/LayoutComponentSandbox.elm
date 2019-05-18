@@ -35,7 +35,7 @@ test_init =
 You can use Markdown
         """
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
-        , Sandbox.spawnChild ComponentAlias.ReceiveChild
+        , Sandbox.spawnChild "Hello child" ComponentAlias.ReceiveChild
         ]
 
 
