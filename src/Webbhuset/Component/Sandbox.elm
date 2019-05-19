@@ -28,7 +28,7 @@ This will render each test case and log all messages.
 Create a test file with a `main` function where you declare all
 test cases.
 
-    module YourComponentSandbox exposing (..)
+A sandbox module example for `YourComponent`:
 
     import YourComponent
 
@@ -46,7 +46,7 @@ test cases.
             }
 
 
-@docs ui, layout, service
+@docs ui, layout, service, elmUILayout
 
 # Create a Test Case
 
