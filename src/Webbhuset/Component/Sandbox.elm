@@ -3,6 +3,7 @@ module Webbhuset.Component.Sandbox exposing
     , TestCase
     , ui
     , layout
+    , elmUILayout
     , service
     , sendMsg
     , sendMsgWithDelay
@@ -73,12 +74,16 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as Events
+import Element exposing (Element)
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
+import Webbhuset.Component.ElmUI as ElmUI_Component
+import Webbhuset.Actor.ElmUI as ElmUI_Actor
 import Webbhuset.Component.Navigation as Navigation
 import Webbhuset.Component.LoremIpsum as LoremIpsum
 import Webbhuset.Internal.PID exposing (PID(..))
+import Webbhuset.Internal.Component as InternalC
 import Webbhuset.PID as PID
 import Browser.Navigation as Nav
 import Browser
@@ -155,11 +160,11 @@ sendMsgWithDelay =
 -}
 ui :
     { title : String
-    , component : Component.UI model msgIn msgOut
+    , component : InternalC.UI model msgIn msgOut output
     , cases : List (TestCase msgIn)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
-    , wrapView : Html msgIn -> Html msgIn
+    , wrapView : output -> Html msgIn
     }
     -> SandboxProgram model msgIn
 ui ({ component } as args) =
@@ -169,8 +174,11 @@ ui ({ component } as args) =
         , mapIn = testedMapIn
         , mapOut = testedMapOut args.stringifyMsgOut
         }
-        { component
-            | view = component.view >> args.wrapView
+        { init = component.init
+        , update = component.update
+        , kill = component.kill
+        , subs = component.subs
+        , view = component.view >> args.wrapView
         }
         |> toApplication args
 
@@ -201,6 +209,35 @@ layout ({ component } as args) =
         }
         |> toApplication args
 
+
+{-| Sandbox a Elm UI Layout Component
+
+-}
+elmUILayout :
+    { title : String
+    , component : ElmUI_Component.Layout model msgIn msgOut (Msg msgIn)
+    , cases : List (TestCase msgIn)
+    , stringifyMsgIn : msgIn -> String
+    , stringifyMsgOut : msgOut -> String
+    , wrapView : (msgIn -> Msg msgIn) -> Element (Msg msgIn) -> Html (Msg msgIn)
+    }
+    -> SandboxProgram model msgIn
+elmUILayout ({ component } as args) =
+    Actor.fromLayout
+        { wrapModel = P_Component
+        , wrapMsg = ComponentMsg
+        , mapIn = testedMapIn
+        , mapOut = testedMapOut args.stringifyMsgOut
+        }
+        { init = component.init
+        , update = component.update
+        , kill = component.kill
+        , subs = component.subs
+        , view = \toSelf model renderPID ->
+            (component.view toSelf model (Element.paragraph [] << List.singleton << Element.html << renderPID))
+                |> args.wrapView toSelf
+        }
+        |> toApplication args
 
 {-| Sandbox a Service Component
 
