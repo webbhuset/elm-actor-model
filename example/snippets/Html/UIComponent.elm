@@ -1,4 +1,4 @@
-module UIComponent exposing
+module Html.UIComponent exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model

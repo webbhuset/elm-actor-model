@@ -1,16 +1,17 @@
-module UIComponentSandbox exposing (..)
+module ElmUI.LayoutComponentSandbox exposing (..)
 
 import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
+import Webbhuset.Component.ElmUI as Component
 import Webbhuset.PID as PID
-import UIComponent as ComponentAlias
+import ElmUI.LayoutComponent as ComponentAlias
+import Element exposing (Element)
 import Html exposing (Html)
-import Html.Attributes as HA
 
 
 main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
 main =
-    Sandbox.ui
-        { title = "Title of UI Component"
+    Sandbox.elmUILayout
+        { title = "Elm UI Layout Component"
         , component = ComponentAlias.component
         , cases =
             [ test_init
@@ -20,27 +21,15 @@ main =
         , wrapView = view
         }
 
+
 {-| You can wrap the output of your component.
 
 This is useful when you want to add CSS style or some extra test buttons.
 -}
-view : Html ComponentAlias.MsgIn -> Html ComponentAlias.MsgIn
-view componentHtml =
-    Html.div
-        [ HA.class "component"
-        ]
-        [ Html.node "style" [] [ Html.text css ]
-        , componentHtml
-        ]
-
-
-css : String
-css =
-    """
-.component {
-    font-family: monospace;
-}
-"""
+view : (ComponentAlias.MsgIn -> msg) -> Element msg -> Html msg
+view toSelf componentHtml =
+    componentHtml
+        |> Element.layout []
 
 
 test_init : Sandbox.TestCase ComponentAlias.MsgIn
@@ -53,4 +42,7 @@ test_init =
 You can use Markdown
         """
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
+        , Sandbox.spawnChild "Hello child" ComponentAlias.ReceiveChild
         ]
+
+

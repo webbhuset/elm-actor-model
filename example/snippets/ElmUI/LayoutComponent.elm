@@ -1,13 +1,12 @@
-module LayoutComponent exposing
+module ElmUI.LayoutComponent exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
     , component
     )
 
-import Html exposing (Html)
-import Html.Attributes as HA
-import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.ElmUI as Component exposing (PID)
+import Element exposing (Element)
 
 
 type MsgIn
@@ -75,12 +74,13 @@ update msgIn model =
             )
 
 
-view : (MsgIn -> msg) -> Model -> (PID -> Html msg) -> Html msg
+view : (MsgIn -> msg) -> Model -> (PID -> Element msg) -> Element msg
 view toSelf model renderPID =
-    Html.div
+    Element.column
         []
-        [ Html.h1 [] [ Html.text "Layout Component" ]
+        [ Element.el [] (Element.text "Layout Component" )
+        , Element.el [] (Element.text "Layout Component" )
         , model.children
             |> List.map renderPID
-            |> Html.div []
+            |> Element.column []
         ]

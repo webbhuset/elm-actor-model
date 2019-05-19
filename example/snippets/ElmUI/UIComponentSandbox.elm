@@ -1,33 +1,33 @@
-module ServiceComponentSandbox exposing (..)
+module ElmUI.UIComponentSandbox exposing (..)
 
 import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
-import Webbhuset.Component as Component
+import Webbhuset.PID as PID
+import ElmUI.UIComponent as ComponentAlias
 import Html exposing (Html)
-import ServiceComponent as ComponentAlias
+import Element exposing (Element)
 
 
 main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
 main =
-    Sandbox.service
-        { title = "Service Component"
-        , component = ComponentAlias.component ()
+    Sandbox.ui
+        { title = "Elm UI UI Component"
+        , component = ComponentAlias.component
         , cases =
             [ test_init
             ]
         , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
         , stringifyMsgOut = Debug.toString
-        , view = view
+        , wrapView = view
         }
 
+{-| You can wrap the output of your component.
 
-
-{-| Sometimes it is useful to render some internals of your
-service component's model.
-
+This is useful when you want to add CSS style or some extra test buttons.
 -}
-view : ComponentAlias.Model -> Html ComponentAlias.MsgIn
-view model =
-    Html.text "Hello"
+view : Element ComponentAlias.MsgIn -> Html ComponentAlias.MsgIn
+view componentHtml =
+    componentHtml
+        |> Element.layout []
 
 
 
@@ -42,5 +42,3 @@ You can use Markdown
         """
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]
-
-

@@ -1,17 +1,16 @@
-module LayoutComponentSandbox exposing (..)
+module Html.LayoutComponentSandbox exposing (..)
 
 import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
-import Webbhuset.Component as Component
 import Webbhuset.PID as PID
 import Html exposing (Html)
 import Html.Attributes as HA
-import LayoutComponent as ComponentAlias
+import Html.LayoutComponent as ComponentAlias
 
 
 main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
 main =
     Sandbox.layout
-        { title = "Title of Component"
+        { title = "Layout Component"
         , component = ComponentAlias.component
         , cases =
             [ test_init
