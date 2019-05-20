@@ -5,10 +5,10 @@ import Element exposing (Element)
 import Webbhuset.ActorSystem as System
 import ElmUIApp.Msg as Msg exposing (Msg)
 import ElmUIApp.Bootstrap as Bootstrap
-import ElmUIApp.Actor as Actor exposing (Actor)
+import ElmUIApp.ActorName as ActorName exposing (ActorName)
 
 type alias Model =
-    System.Model Actor Bootstrap.Model
+    System.Model ActorName Bootstrap.Model
 
 
 main : Program () Model Msg
@@ -23,7 +23,7 @@ main =
 
 init : () -> Msg
 init flags =
-    [ System.withSingletonPID Actor.TodoList System.addView
+    [ System.withSingletonPID ActorName.TodoList System.addView
     ]
         |> System.batch
 

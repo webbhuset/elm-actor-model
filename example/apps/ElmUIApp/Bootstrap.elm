@@ -3,7 +3,7 @@ module ElmUIApp.Bootstrap exposing (..)
 
 import Webbhuset.ActorSystem as System
 import ElmUIApp.Msg as Msg
-import ElmUIApp.Actor as Actor
+import ElmUIApp.ActorName as ActorName
 
 import ElmUIApp.Actor.TodoList as TodoList
 import ElmUIApp.Actor.TodoItem as TodoItem
@@ -25,13 +25,13 @@ actors =
 
 spawn actor =
     case actor of
-        Actor.TodoList ->
+        ActorName.TodoList ->
             actors.todoList.init
 
-        Actor.TodoItem ->
+        ActorName.TodoItem ->
             actors.todoItem.init
 
-        Actor.TodoService ->
+        ActorName.TodoService ->
             actors.todoService.init
 
 
