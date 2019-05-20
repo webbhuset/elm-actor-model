@@ -887,53 +887,71 @@ view config toSelf model renderPID =
 
         color =
             colorsFromQueryParams queryParams
+
+
+        fullScreenCase =
+            let
+                resolve maybe fn =
+                    maybe
+                        |> Maybe.andThen fn
+            in
+            resolve (Dict.get "fullscreen" queryParams) <|\_ -> 
+            resolve model.displayCase <| \caseIdx ->
+            resolve (Dict.get caseIdx model.cases) <| \testCase ->
+            resolve (Dict.get caseIdx model.pids) <| \child ->
+                Just ( caseIdx, testCase, child )
     in
-    Html.div
-        [ HA.class "ams-pagewrap"
-        , HA.style "background" color.bgColor
-        ]
-        [ Html.node "style"
-            []
-            [ css
-                |> String.replace "{{bgColor}}" color.bgColor
-                |> String.replace "{{testCaseBg}}" color.testCaseBgColor
-                |> String.replace "{{componentBg}}" color.componentBgColor
-                |> Html.text
-            ]
-        , pageHeader toSelf model color
-        , Html.hr [ HA.class "ams-hr" ] []
-        , testCaseSelectBox toSelf model
-        , Html.div
-            []
-            ( model.displayCase
-                |> Maybe.andThen
-                    (\idx ->
-                        Dict.get idx model.cases
-                            |> Maybe.map
-                                (\testCase ->
-                                    let
-                                        child =
-                                            Dict.get idx model.pids
-                                    in
-                                    Maybe.map (renderChild model toSelf renderPID idx testCase) child
-                                        |> Maybe.withDefault (Html.text "")
-                                        |> List.singleton
-                                )
-                    )
-                |> Maybe.withDefault
-                    ( testCases
-                        |> List.map
-                            (\( idx, testCase ) ->
-                                let
-                                    child =
-                                        Dict.get idx model.pids
-                                in
-                                Maybe.map (renderChild model toSelf renderPID idx testCase) child
-                                    |> Maybe.withDefault (Html.text "")
+    case fullScreenCase of
+        Just ( idx, testCase, child ) ->
+            renderPID child.pid
+
+        _ ->
+            Html.div
+                [ HA.class "ams-pagewrap"
+                , HA.style "background" color.bgColor
+                ]
+                [ Html.node "style"
+                    []
+                    [ css
+                        |> String.replace "{{bgColor}}" color.bgColor
+                        |> String.replace "{{testCaseBg}}" color.testCaseBgColor
+                        |> String.replace "{{componentBg}}" color.componentBgColor
+                        |> Html.text
+                    ]
+                , pageHeader toSelf model color
+                , Html.hr [ HA.class "ams-hr" ] []
+                , testCaseSelectBox toSelf model
+                , Html.div
+                    []
+                    ( model.displayCase
+                        |> Maybe.andThen
+                            (\idx ->
+                                Dict.get idx model.cases
+                                    |> Maybe.map
+                                        (\testCase ->
+                                            let
+                                                child =
+                                                    Dict.get idx model.pids
+                                            in
+                                            Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                                                |> Maybe.withDefault (Html.text "")
+                                                |> List.singleton
+                                        )
+                            )
+                        |> Maybe.withDefault
+                            ( testCases
+                                |> List.map
+                                    (\( idx, testCase ) ->
+                                        let
+                                            child =
+                                                Dict.get idx model.pids
+                                        in
+                                        Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                                            |> Maybe.withDefault (Html.text "")
+                                    )
                             )
                     )
-            )
-        ]
+                ]
 
 
 pageHeader : (MsgIn -> msg) -> DevModel msgIn -> ColorConfig -> Html msg
@@ -980,6 +998,35 @@ pageHeader toSelf model color =
                 >> NavigateTo
                 >> toSelf
             )
+        ]
+
+
+
+fullscreenToggle : (MsgIn -> msg) -> DevModel msgIn -> Int -> Html msg
+fullscreenToggle toSelf model testCaseIdx =
+    let
+        ( currentPath, queryParams ) =
+            model.currentUrl
+                |> Maybe.map parseUrl
+                |> Maybe.withDefault ( [], Dict.empty )
+
+        isSelected =
+            Dict.get "fullscreen" queryParams
+                |> Maybe.map (always True)
+                |> Maybe.withDefault False
+
+        onClick =
+            Dict.insert "fullscreen" "on" queryParams
+                |> buildHref [ "testcase", String.fromInt testCaseIdx ]
+                |> NavigateTo
+                |> toSelf
+                |> Events.onClick
+    in
+    Html.button
+        [ HA.class "ams-button ams-fullscreen-toggle"
+        , onClick
+        ]
+        [ Html.text "View fullscreen"
         ]
 
 
@@ -1070,6 +1117,7 @@ renderChild model toSelf renderPID idx testCase child =
                 |> Html.text
                 |> List.singleton
                 |> Html.span [ HA.class "ams-testcase__pidLabel" ]
+            , fullscreenToggle toSelf model idx 
             , Html.button
                 [ Events.onClick (toSelf <| ReInit idx)
                 , HA.class "ams-button"
