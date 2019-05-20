@@ -87,6 +87,7 @@ import Webbhuset.Internal.Component as InternalC
 import Webbhuset.PID as PID
 import Browser.Navigation as Nav
 import Browser
+import Markdown
 import Url exposing (Url)
 
 
@@ -1104,11 +1105,10 @@ renderChild model toSelf renderPID idx testCase child =
             ]
             [ Html.text testCase.title
             ]
-        , Html.p
+        , Markdown.toHtml
             [ HA.class "ams-testcase__desc"
             ]
-            [ Html.text testCase.desc
-            ]
+            testCase.desc
         , Html.div
             [ HA.class "ams-cornerarea"
             ]
