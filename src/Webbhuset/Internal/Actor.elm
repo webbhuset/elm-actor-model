@@ -87,6 +87,7 @@ wrapTriple args pid ( model, msgsOut, cmd ) =
                 |> (::) msgCmd
                 |> Msg.Batch
                 |> Msg.Ctrl
+                |> Msg.Context pid
     in
     ( model
     , msg

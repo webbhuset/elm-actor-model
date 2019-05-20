@@ -2,7 +2,7 @@ module ElmUIApp.Actor.TodoService exposing (..)
 
 import Webbhuset.ActorSystem as System
 import Webbhuset.Actor.ElmUI as Actor exposing (Actor)
-import Webbhuset.PID exposing (PID)
+import Webbhuset.PID as PID exposing (PID)
 import ElmUIApp.Msg as Msg exposing (Msg)
 import ElmUIApp.Component.TodoService as TodoService
 
@@ -32,5 +32,9 @@ mapIn appMsg =
 
 
 mapOut : PID -> TodoService.MsgOut -> Msg
-mapOut pid msgOut =
-    System.none
+mapOut self msgOut =
+    case msgOut of
+        TodoService.Init ->
+            Msg.Dummy
+                |> System.toAppMsg
+                |> System.sendToPID PID.null

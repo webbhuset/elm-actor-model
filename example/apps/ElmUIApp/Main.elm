@@ -24,6 +24,7 @@ main =
 init : () -> Msg
 init flags =
     [ System.withSingletonPID ActorName.TodoList System.addView
+    , System.spawnSingleton ActorName.TodoService
     ]
         |> System.batch
 

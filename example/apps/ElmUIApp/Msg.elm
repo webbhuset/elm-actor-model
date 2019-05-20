@@ -16,3 +16,4 @@ type AppMsg
     = TodoList TodoList.MsgIn
     | TodoItem TodoItem.MsgIn
     | TodoService TodoService.MsgIn
+    | Dummy

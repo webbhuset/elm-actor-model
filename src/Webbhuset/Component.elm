@@ -119,6 +119,7 @@ type alias Service model msgIn msgOut =
     , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , kill : model -> List msgOut
     , subs : model -> Sub msgIn
+    , onSystem : PID -> msgIn
     }
 
 

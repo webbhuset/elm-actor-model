@@ -33,7 +33,7 @@ type MsgIn
 {-| Message Out
 -}
 type MsgOut
-    = NoOut
+    = Init
 
 
 
@@ -61,6 +61,7 @@ component config =
     , update = update config
     , kill = kill
     , subs = subs
+    , onSystem = always NoIn
     }
 
 
@@ -69,7 +70,8 @@ init config pid =
     ( { pid = pid
       }
         |> InitState
-    , []
+    , [ Init
+      ]
     , Cmd.none
     )
 

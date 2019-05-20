@@ -340,7 +340,7 @@ element :
 element impl =
     Browser.element
         { init = initElement impl
-        , update = update impl
+        , update = update impl Nothing
         , subscriptions = subscriptions impl
         , view = impl.view << view impl
         }
@@ -363,7 +363,7 @@ application :
 application impl =
     Browser.application
         { init = initApplication impl
-        , update = update impl
+        , update = update impl Nothing
         , subscriptions = subscriptions impl
         , view = applicationView impl
         , onUrlRequest = impl.onUrlRequest
@@ -464,10 +464,11 @@ composeSysMsg msg1 msg2 =
 
 update :
     Impl name appModel output appMsg a
+    -> Maybe PID
     -> SysMsg name appMsg
     -> Model name appModel
     -> ( Model name appModel, Cmd (SysMsg name appMsg) )
-update impl msg ((Model modelRecord) as model) =
+update impl context msg ((Model modelRecord) as model) =
     case msg of
         None ->
             ( model, Cmd.none )
@@ -478,10 +479,13 @@ update impl msg ((Model modelRecord) as model) =
         Init initMsg prefix ->
             { modelRecord | prefix = prefix }
                 |> Model
-                |> update impl initMsg
+                |> update impl context initMsg
 
         UnmappedMsg appMsg ->
             ( model, Cmd.none )
+
+        Context pid subMsg ->
+            update impl (Just pid) subMsg model
 
         SetDocumentTitle title ->
             ( { modelRecord | documentTitle = title }
@@ -495,7 +499,7 @@ update impl msg ((Model modelRecord) as model) =
                     listOfMsgs
                         |> List.foldl
                             (\batchMsg previous ->
-                                cmdAndThen (update impl batchMsg) previous
+                                cmdAndThen (update impl context batchMsg) previous
                             )
                             ( model, Cmd.none )
 
@@ -528,19 +532,23 @@ update impl msg ((Model modelRecord) as model) =
                                             (appModel, None)
                                         |> Tuple.mapFirst (updateInstanceIn modelRecord pid >> Model)
                             in
-                            update impl newMsg m2
+                            update impl context newMsg m2
 
                         Nothing ->
+                            let
+                                _ = Debug.log "pid" context
+                                _ = Debug.log "msg" msg
+                            in
                             ( model, Cmd.none )
 
                 SendToSingleton name message ->
                     case findSingletonPID name modelRecord of
                         Just pid ->
-                            update impl (sendToPID pid message) model
+                            update impl context (sendToPID pid message) model
 
                         Nothing ->
-                            update impl (spawnSingleton name) model
-                                |> cmdAndThen (update impl msg)
+                            update impl context (spawnSingleton name) model
+                                |> cmdAndThen (update impl context msg)
 
                 Spawn name replyMsg ->
                     let
@@ -550,8 +558,8 @@ update impl msg ((Model modelRecord) as model) =
                         ( m3, newMsg ) =
                             spawn_ impl name pid m2
                     in
-                    update impl newMsg (Model m3)
-                        |> cmdAndThen (update impl (replyMsg pid))
+                    update impl context newMsg (Model m3)
+                        |> cmdAndThen (update impl context (replyMsg pid))
 
                 Kill ((PID _ key) as pid) ->
                     case Dict.get key modelRecord.instances of
@@ -565,7 +573,7 @@ update impl msg ((Model modelRecord) as model) =
                             in
                             { modelRecord | instances = Dict.remove key modelRecord.instances }
                                 |> Model
-                                |> update impl componentLastWords
+                                |> update impl context componentLastWords
 
                         Nothing ->
                             ( model, Cmd.none )
@@ -579,7 +587,7 @@ update impl msg ((Model modelRecord) as model) =
                             appendSingleton name pid m2
                                 |> spawn_ impl name pid
                     in
-                    update impl newMsg (Model m3)
+                    update impl context newMsg (Model m3)
 
                 AddView pid ->
                     ( { modelRecord | views = pid :: modelRecord.views }
@@ -590,11 +598,11 @@ update impl msg ((Model modelRecord) as model) =
                 WithSingletonPID name makeMsg ->
                     case findSingletonPID name modelRecord of
                         Just pid ->
-                            update impl (makeMsg pid) model
+                            update impl context (makeMsg pid) model
 
                         Nothing ->
-                            update impl (spawnSingleton name) model
-                                |> cmdAndThen (update impl msg)
+                            update impl context (spawnSingleton name) model
+                                |> cmdAndThen (update impl context msg)
 
 
 spawn_ : Impl name appModel output appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )

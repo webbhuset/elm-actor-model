@@ -8,6 +8,7 @@ type Msg name appMsg
     | AppMsg appMsg
     | UnmappedMsg appMsg
     | Ctrl (Control name (Msg name appMsg))
+    | Context PID (Msg name appMsg)
     | Init (Msg name appMsg) String
     | SetDocumentTitle String
 
