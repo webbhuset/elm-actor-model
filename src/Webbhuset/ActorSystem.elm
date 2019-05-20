@@ -91,6 +91,7 @@ import Random
 import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Webbhuset.Internal.Msg as Msg exposing (Msg(..), Control(..))
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 {-| A PID is an identifier for a Process.
@@ -117,7 +118,7 @@ type Model name appModel =
 
 
 type alias ModelRecord name appModel =
-    { instances : Dict Int appModel
+    { instances : Dict Int ( PID, appModel )
     , lastPID : Int
     , prefix : String
     , singleton : List ( name, PID )
@@ -133,7 +134,7 @@ type alias Actor compModel appModel output msg =
     { init : PID -> ( appModel, msg )
     , update : compModel -> msg -> PID -> ( appModel, msg )
     , view : compModel -> PID -> (PID -> Maybe output) -> output
-    , kill : compModel -> PID -> msg
+    , onSystem : SystemEvent -> PID -> msg
     , subs : compModel -> PID -> Sub msg
     }
 
@@ -146,7 +147,7 @@ type AppliedActor appModel output msg =
         { init : PID -> ( appModel, msg )
         , update : msg -> PID -> ( appModel, msg )
         , view : PID -> (PID -> Maybe output) -> output
-        , kill : PID -> msg
+        , onSystem : SystemEvent -> PID -> msg
         , subs : PID -> Sub msg
         }
 
@@ -320,7 +321,7 @@ applyModel actor model =
         { init = actor.init
         , update = actor.update model
         , view = actor.view model
-        , kill = actor.kill model
+        , onSystem = actor.onSystem
         , subs = actor.subs model
         }
 
@@ -535,11 +536,25 @@ update impl context msg ((Model modelRecord) as model) =
                             update impl context newMsg m2
 
                         Nothing ->
-                            let
-                                _ = Debug.log "pid" context
-                                _ = Debug.log "msg" msg
-                            in
-                            ( model, Cmd.none )
+                            context
+                                |> Maybe.map
+                                    (\senderPID ->
+                                        case getProcess senderPID modelRecord of
+                                            Just senderModel ->
+                                                let
+                                                    (AppliedActor applied) =
+                                                        impl.apply senderModel
+
+                                                    senderMsg =
+                                                        applied.onSystem (SystemEvent.Gone pid) senderPID
+                                                in
+                                                update impl context senderMsg model
+
+                                            Nothing ->
+                                                ( model, Cmd.none ) -- Should never happen.
+                                    )
+                                |> Maybe.withDefault
+                                    ( model, Cmd.none )
 
                 SendToSingleton name message ->
                     case findSingletonPID name modelRecord of
@@ -553,7 +568,7 @@ update impl context msg ((Model modelRecord) as model) =
                 Spawn name replyMsg ->
                     let
                         ( m2, pid ) =
-                            newPID modelRecord
+                            newPID False modelRecord
 
                         ( m3, newMsg ) =
                             spawn_ impl name pid m2
@@ -561,27 +576,30 @@ update impl context msg ((Model modelRecord) as model) =
                     update impl context newMsg (Model m3)
                         |> cmdAndThen (update impl context (replyMsg pid))
 
-                Kill ((PID _ key) as pid) ->
-                    case Dict.get key modelRecord.instances of
-                        Just appModel ->
-                            let
-                                (AppliedActor applied) =
-                                    impl.apply appModel
+                Kill ((PID pidMeta) as pid) ->
+                    if pidMeta.isSingleton then
+                        ( model, Cmd.none )
+                    else
+                        case Dict.get pidMeta.key modelRecord.instances of
+                            Just ( _, appModel ) ->
+                                let
+                                    (AppliedActor applied) =
+                                        impl.apply appModel
 
-                                componentLastWords =
-                                    applied.kill pid
-                            in
-                            { modelRecord | instances = Dict.remove key modelRecord.instances }
-                                |> Model
-                                |> update impl context componentLastWords
+                                    componentLastWords =
+                                        applied.onSystem (SystemEvent.Kill) pid
+                                in
+                                { modelRecord | instances = Dict.remove pidMeta.key modelRecord.instances }
+                                    |> Model
+                                    |> update impl context componentLastWords
 
-                        Nothing ->
-                            ( model, Cmd.none )
+                            Nothing ->
+                                ( model, Cmd.none )
 
                 SpawnSingleton name ->
                     let
                         ( m2, pid ) =
-                            newPID modelRecord
+                            newPID True modelRecord
 
                         ( m3, newMsg ) =
                             appendSingleton name pid m2
@@ -611,26 +629,25 @@ spawn_ impl name pid model =
         |> Tuple.mapFirst (updateInstanceIn model pid)
 
 
-newPID : ModelRecord name appModel -> ( ModelRecord name appModel, PID )
-newPID model =
-    model.lastPID
-        |> PID model.prefix
+newPID : Bool -> ModelRecord name appModel -> ( ModelRecord name appModel, PID )
+newPID isSingleton model =
+    { key = model.lastPID
+    , prefix = model.prefix
+    , isSingleton = isSingleton
+    }
+        |> PID
         |> Tuple.pair { model | lastPID = 1 + model.lastPID }
 
 
 getProcess : PID -> ModelRecord name appModel -> Maybe appModel
-getProcess (PID _ pid) model =
-    Dict.get pid model.instances
-
-
-getInstanceFrom : ModelRecord name appModel -> PID -> Maybe appModel
-getInstanceFrom model (PID _ pid) =
-    Dict.get pid model.instances
+getProcess (PID { key }) model =
+    Dict.get key model.instances
+        |> Maybe.map Tuple.second
 
 
 updateInstanceIn : ModelRecord name appModel -> PID -> appModel -> ModelRecord name appModel
-updateInstanceIn model (PID _ pid) appModel =
-    { model | instances = Dict.insert pid appModel model.instances }
+updateInstanceIn model ((PID { key }) as pid) appModel =
+    { model | instances = Dict.insert key ( pid, appModel ) model.instances }
 
 
 appendSingleton : name -> PID -> ModelRecord name appModel -> ModelRecord name appModel
@@ -651,13 +668,13 @@ subscriptions : Impl name appModel output appMsg a -> Model name appModel -> Sub
 subscriptions impl (Model model) =
     model.instances
         |> Dict.foldl
-            (\pid appModel subs ->
+            (\key ( pid, appModel ) subs ->
                 let
                     (AppliedActor applied) =
                         impl.apply appModel
 
                     sub =
-                        applied.subs (PID model.prefix pid)
+                        applied.subs pid
                 in
                 if sub == Sub.none then
                     subs
@@ -674,10 +691,10 @@ view impl (Model model) =
     model.views
         |> List.filterMap
             (renderPID
-                (\p ->
+                (\( _, processModel ) ->
                     let
                         (AppliedActor applied) =
-                            impl.apply p
+                            impl.apply processModel
                     in
                     applied.view
                 )
@@ -686,7 +703,7 @@ view impl (Model model) =
 
 
 renderPID : (appModel -> PID -> (PID -> Maybe output) -> output) -> Dict Int appModel -> PID -> Maybe output
-renderPID renderActor dict ((PID _ key) as pid) =
+renderPID renderActor dict ((PID { key }) as pid) =
     Dict.get key dict
         |> Maybe.map
             (\appModel ->

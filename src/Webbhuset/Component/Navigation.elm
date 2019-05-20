@@ -57,7 +57,7 @@ component : Component.Service Model MsgIn MsgOut
 component =
     { init = init
     , update = update
-    , kill = kill
+    , onSystem = always Nothing
     , subs = subs
     }
 

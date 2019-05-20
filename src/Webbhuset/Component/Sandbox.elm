@@ -190,7 +190,7 @@ ui ({ component } as args) =
         }
         { init = component.init
         , update = component.update
-        , kill = component.kill
+        , onSystem = component.onSystem
         , subs = component.subs
         , view = component.view >> args.wrapView
         }
@@ -255,7 +255,7 @@ elmUILayout ({ component } as args) =
         }
         { init = component.init
         , update = component.update
-        , kill = component.kill
+        , onSystem = component.onSystem
         , subs = component.subs
         , view = \toSelf model renderPID ->
             (component.view toSelf model (Element.paragraph [] << List.singleton << Element.html << renderPID))
@@ -292,7 +292,7 @@ service args =
         }
         { init = args.component.init
         , update = args.component.update
-        , kill = args.component.kill
+        , onSystem = args.component.onSystem
         , subs = args.component.subs
         , view = args.view
         }
@@ -604,7 +604,7 @@ sandboxComponent config =
     { init = init config
     , update = update config
     , view = view config
-    , kill = kill
+    , onSystem = always Nothing
     , subs = always Sub.none
     }
 
@@ -677,11 +677,6 @@ init config pid =
             )
     , Cmd.none
     )
-
-
-kill : DevModel -> List (MsgOut msgIn msgOut)
-kill model =
-    []
 
 
 update : Config i o -> (MsgIn i o) -> DevModel -> ( DevModel, List (MsgOut i o), Cmd (MsgIn i o) )
@@ -1212,7 +1207,7 @@ renderChild model toSelf renderPID idx testCase child =
             [ HA.class "ams-testcase__toolbar"
             ]
             [ child.pid
-                |> (\(PID _ p) -> "PID: " ++ String.fromInt p)
+                |> (\(PID { key }) -> "PID: " ++ String.fromInt key)
                 |> Html.text
                 |> List.singleton
                 |> Html.span [ HA.class "ams-testcase__pidLabel" ]

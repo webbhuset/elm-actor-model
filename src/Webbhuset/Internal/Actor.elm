@@ -2,6 +2,7 @@ module Webbhuset.Internal.Actor exposing (..)
 
 import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID exposing (PID)
+import Webbhuset.Component.SystemEvent exposing (SystemEvent)
 
 
 type alias Args name compModel appModel msgIn msgOut appMsg =
@@ -16,16 +17,20 @@ type alias SysMsg name appMsg =
     Msg.Msg name appMsg
 
 
-wrapKill : (PID -> msgOut -> SysMsg name appMsg)
-    -> (compModel -> List msgOut)
-    -> compModel
+wrapSystem : (msgIn -> appMsg)
+    -> (SystemEvent -> Maybe msgIn)
+    -> SystemEvent
     -> PID
     -> SysMsg name appMsg
-wrapKill mapOut kill model pid =
-    kill model
-        |> List.map (mapOut pid)
-        |> Msg.Batch
-        |> Msg.Ctrl
+wrapSystem toSelf onSystem event pid =
+    onSystem event
+        |> Maybe.map
+            (toSelf
+                >> Msg.AppMsg
+                >> Msg.SendToPID pid
+                >> Msg.Ctrl
+            )
+        |> Maybe.withDefault Msg.None
 
 
 wrapSub :
@@ -50,6 +55,7 @@ wrapSub toSelf subs model pid =
                 >> Msg.Ctrl
             )
             sub
+
 
 wrapInit : Args name compModel appModel msgIn msgOut appMsg
     -> (PID -> ( compModel, List msgOut, Cmd msgIn ))

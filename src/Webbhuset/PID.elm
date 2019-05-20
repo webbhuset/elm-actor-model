@@ -32,8 +32,8 @@ The string is unique for the component instance.
 
 -}
 toString : PID -> String
-toString (PID prefix pid) =
-    prefix ++ String.fromInt pid
+toString (PID { prefix, key }) =
+    prefix ++ String.fromInt key
 
 
 {-| PID for testing purposes.
@@ -41,7 +41,9 @@ toString (PID prefix pid) =
 -}
 null : PID
 null =
-    PID "null" 0
-
-
+    PID
+        { isSingleton = False
+        , prefix = "null"
+        , key = 0
+        }
 

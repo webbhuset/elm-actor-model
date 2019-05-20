@@ -33,7 +33,7 @@ import Webbhuset.Component.ElmUI as Component
 import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID
 import Webbhuset.ActorSystem as System
-import Webbhuset.Internal.Actor exposing (Args, wrapKill, wrapSub, wrapInit, wrapUpdate)
+import Webbhuset.Internal.Actor exposing (Args, wrapSystem, wrapSub, wrapInit, wrapUpdate)
 
 type alias SysMsg name appMsg =
     Msg.Msg name appMsg
@@ -68,7 +68,7 @@ fromLayout args component =
     { init = wrapInit args component.init
     , update = wrapUpdate args component.update
     , view = layoutView args component.view
-    , kill = wrapKill args.mapOut component.kill
+    , onSystem = wrapSystem args.wrapMsg component.onSystem
     , subs = wrapSub args.wrapMsg component.subs
     }
 
@@ -111,7 +111,7 @@ fromUI args component =
     { init = wrapInit args component.init
     , update = wrapUpdate args component.update
     , view = uiView args component.view
-    , kill = wrapKill args.mapOut component.kill
+    , onSystem = wrapSystem args.wrapMsg component.onSystem
     , subs = wrapSub args.wrapMsg component.subs
     }
 
@@ -152,7 +152,7 @@ fromService args component =
     { init = wrapInit args component.init
     , update = wrapUpdate args component.update
     , view = serviceView
-    , kill = wrapKill args.mapOut component.kill
+    , onSystem = wrapSystem args.wrapMsg component.onSystem
     , subs = wrapSub args.wrapMsg component.subs
     }
 

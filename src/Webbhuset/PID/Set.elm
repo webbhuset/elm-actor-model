@@ -26,7 +26,7 @@ to gather PIDs that are observing an event in a Set.
     , toList
 -}
 
-import Set
+import Dict exposing (Dict)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
 
 
@@ -42,7 +42,7 @@ type alias PID =
 
 -}
 type Set
-    = PIDSet (Set.Set ( String, Int ))
+    = PIDSet (Dict Int PID)
 
 
 {-| Create an empty set
@@ -50,15 +50,15 @@ type Set
 -}
 empty : Set
 empty =
-    PIDSet Set.empty
+    PIDSet Dict.empty
 
 
 {-| Insert PID in a Set
 
 -}
 insert : PID -> Set -> Set
-insert (PID prefix pid) (PIDSet set) =
-    Set.insert ( prefix, pid ) set
+insert ((PID { key } as pid)) (PIDSet dict) =
+    Dict.insert key pid dict
         |> PIDSet
 
 
@@ -66,8 +66,8 @@ insert (PID prefix pid) (PIDSet set) =
 
 -}
 remove : PID -> Set -> Set
-remove (PID prefix pid) (PIDSet set) =
-    Set.remove ( prefix, pid ) set
+remove (PID { key }) (PIDSet dict) =
+    Dict.remove key dict
         |> PIDSet
 
 
@@ -75,14 +75,13 @@ remove (PID prefix pid) (PIDSet set) =
 
 -}
 toList : Set -> List PID
-toList (PIDSet set) =
-    Set.toList set
-        |> List.map (\( prefix, id ) -> PID prefix id)
+toList (PIDSet dict) =
+    Dict.values dict
 
 
 {-| Check if a Set is empty.
 
 -}
 isEmpty : Set -> Bool
-isEmpty (PIDSet set) =
-    Set.isEmpty set
+isEmpty (PIDSet dict) =
+    Dict.isEmpty dict

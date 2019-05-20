@@ -40,7 +40,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , kill = kill
+    , onSystem = always Nothing
     , subs = subs
     }
 
@@ -54,11 +54,6 @@ init pid =
     , []
     , Cmd.none
     )
-
-
-kill : Model -> List MsgOut
-kill model =
-    []
 
 
 subs : Model -> Sub MsgIn

@@ -46,10 +46,11 @@ Check Webbhuset.Component for more info.
     , runQueue
 -}
 import Element exposing (Element)
+import Process
+import Task
 import Webbhuset.Internal.PID as PID
 import Webbhuset.Component as Component
-import Task
-import Process
+import Webbhuset.Component.SystemEvent exposing (SystemEvent)
 
 
 {-| A PID is an identifier for a Process.
@@ -65,9 +66,8 @@ type alias PID =
 type alias Service model msgIn msgOut =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
     , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
-    , kill : model -> List msgOut
+    , onSystem : SystemEvent -> Maybe msgIn
     , subs : model -> Sub msgIn
-    , onSystem : PID -> msgIn
     }
 
 
@@ -78,7 +78,7 @@ type alias UI model msgIn msgOut =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
     , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , view : model -> Element msgIn
-    , kill : model -> List msgOut
+    , onSystem : SystemEvent -> Maybe msgIn
     , subs : model -> Sub msgIn
     }
 
@@ -90,7 +90,7 @@ type alias Layout model msgIn msgOut msg =
     { init : PID -> ( model, List msgOut, Cmd msgIn )
     , update : msgIn -> model -> ( model, List msgOut, Cmd msgIn )
     , view : (msgIn -> msg) -> model -> (PID -> Element msg) -> Element msg
-    , kill : model -> List msgOut
+    , onSystem : SystemEvent -> Maybe msgIn
     , subs : model -> Sub msgIn
     }
 
