@@ -1491,6 +1491,7 @@ css =
         padding: 0.5rem 1rem;
         min-height: 16px;
         margin: 0;
+        overflow: auto;
     }
     .ams-messagelog__inmsg {
         font-family: monospace;
