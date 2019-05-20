@@ -607,9 +607,6 @@ type MsgIn msgIn
     | AddMsg PID Message
     | UrlChanged Url
     | ForwardMsg (MsgOut msgIn)
-    | BgColorPicked String
-    | TestCaseBgColorPicked String
-    | ComponentBgColorPicked String
     | NavigateTo String
 
 
@@ -749,18 +746,21 @@ update config msgIn model =
                 strParam key default =
                     Dict.get key query
                         |> Maybe.withDefault default
-
-                title =
-                    idx
-                        |> Maybe.andThen (\i -> Dict.get i model.cases)
-                        |> Maybe.map .title
-                        |> Maybe.withDefault model.title
-
             in
             case path of
                 [ "testcase", n ] ->
+                    let
+                        idx =
+                            String.toInt n
+
+                        title =
+                            idx
+                                |> Maybe.andThen (\i -> Dict.get i model.cases)
+                                |> Maybe.map .title
+                                |> Maybe.withDefault model.title
+                    in
                     ( { model
-                            | displayCase = String.toInt n
+                            | displayCase = idx
                             , currentUrl = Just url
                       }
                     , [ SetPageTitle title ]
@@ -967,7 +967,7 @@ view config toSelf model renderPID =
                 ]
 
 
-pageHeader : (MsgIn -> msg) -> DevModel msgIn -> ColorConfig -> Html msg
+pageHeader : (MsgIn msgIn -> msg) -> DevModel msgIn -> ColorConfig -> Html msg
 pageHeader toSelf model color =
     let
         ( currentPath, queryParams ) =
@@ -1035,7 +1035,7 @@ pageHeader toSelf model color =
 
 
 
-fullscreenToggle : (MsgIn -> msg) -> DevModel msgIn -> Int -> Html msg
+fullscreenToggle : (MsgIn msgIn -> msg) -> DevModel msgIn -> Int -> Html msg
 fullscreenToggle toSelf model testCaseIdx =
     let
         ( currentPath, queryParams ) =
@@ -1063,7 +1063,7 @@ fullscreenToggle toSelf model testCaseIdx =
         ]
 
 
-testCaseSelectBox : (MsgIn -> msg) -> DevModel msgIn -> Html msg
+testCaseSelectBox : (MsgIn msgIn -> msg) -> DevModel msgIn -> Html msg
 testCaseSelectBox toSelf model =
     let
         testCases =
@@ -1127,7 +1127,7 @@ colorInput htmlID label color toMsg =
         ]
 
 
-renderChild : DevModel m -> ((MsgIn msgIn) -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
+renderChild : DevModel m -> ((MsgIn m) -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
 renderChild model toSelf renderPID idx testCase child =
     Html.div
         [ HA.class "ams-testcase"
