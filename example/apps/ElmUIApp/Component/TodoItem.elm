@@ -1,4 +1,4 @@
-module ElmUI.LayoutComponent exposing
+module ElmUIApp.Component.TodoItem exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
@@ -9,9 +9,10 @@ import Webbhuset.Component.ElmUI as Component exposing (PID)
 import Element exposing (Element)
 
 
+
+
 type MsgIn
     = NoIn
-    | ReceiveChild PID
 
 
 type MsgOut
@@ -20,7 +21,6 @@ type MsgOut
 
 type alias Model =
     { pid : PID
-    , children : List PID
     }
 
 
@@ -28,7 +28,7 @@ type alias Model =
 -- Component
 --
 
-component : Component.Layout Model MsgIn MsgOut msg
+component : Component.UI Model MsgIn MsgOut
 component =
     { init = init
     , update = update
@@ -41,7 +41,6 @@ component =
 init : PID -> ( Model , List MsgOut, Cmd MsgIn )
 init pid =
     ( { pid = pid
-      , children = []
       }
     , []
     , Cmd.none
@@ -67,19 +66,10 @@ update msgIn model =
             , Cmd.none
             )
 
-        ReceiveChild pid ->
-            ( { model | children = model.children ++ [ pid ] }
-            , []
-            , Cmd.none
-            )
 
-
-view : (MsgIn -> msg) -> Model -> (PID -> Element msg) -> Element msg
-view toSelf model renderPID =
+view : Model -> Element MsgIn
+view model =
     Element.column
         []
-        [ Element.el [] (Element.text "Layout Component" )
-        , model.children
-            |> List.map renderPID
-            |> Element.column []
+        [ Element.text "Empty Component"
         ]

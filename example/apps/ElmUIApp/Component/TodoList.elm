@@ -1,4 +1,4 @@
-module ElmUI.LayoutComponent exposing
+module ElmUIApp.Component.TodoList exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
