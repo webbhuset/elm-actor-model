@@ -11,11 +11,12 @@ import Element exposing (Element)
 
 type MsgIn
     = NoIn
+    | Show String
     | ReceiveChild PID
 
 
 type MsgOut
-    = NoOut
+    = SpawnRendererFor String
 
 
 type alias Model =
@@ -64,6 +65,13 @@ update msgIn model =
         NoIn ->
             ( model
             , []
+            , Cmd.none
+            )
+
+        Show ->
+            ( model
+            , [ SpawnRendererFor str
+              ]
             , Cmd.none
             )
 

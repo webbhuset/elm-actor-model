@@ -11,12 +11,12 @@ import Webbhuset.Component as Component exposing (PID)
 
 
 type MsgIn
-    = NoIn
+    = Show String
     | ReceiveChild PID
 
 
 type MsgOut
-    = NoOut
+    = SpawnRendererFor String
 
 
 type alias Model =
@@ -62,9 +62,10 @@ subs model =
 update : MsgIn -> Model -> ( Model, List MsgOut, Cmd MsgIn )
 update msgIn model =
     case msgIn of
-        NoIn ->
+        Show str ->
             ( model
-            , []
+            , [ SpawnRendererFor str
+              ]
             , Cmd.none
             )
 

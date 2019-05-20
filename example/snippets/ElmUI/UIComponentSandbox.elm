@@ -7,7 +7,7 @@ import Html exposing (Html)
 import Element exposing (Element)
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
+main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
 main =
     Sandbox.ui
         { title = "Elm UI UI Component"
@@ -31,14 +31,17 @@ view componentHtml =
 
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn
+test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
 test_init =
-    Sandbox.TestCase
-        "Test case title"
+    { title = "Test case title"
+    , desc =
         """
 # Describe test case here.
 
 You can use Markdown
         """
+    , init =
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]
+    , onMsgOut = always []
+    }

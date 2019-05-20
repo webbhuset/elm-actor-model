@@ -7,7 +7,7 @@ import Html.Attributes as HA
 import Html.LayoutComponent as ComponentAlias
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
+main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
 main =
     Sandbox.layout
         { title = "Layout Component"
@@ -44,17 +44,26 @@ css =
 """
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn
+
+test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
 test_init =
-    Sandbox.TestCase
-        "Test case title"
-        """
+    { title = "Test case title"
+    , desc =
+    """
 # Describe test case here.
 
 You can use Markdown
-        """
-        [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
-        , Sandbox.spawnChild "Hello child" ComponentAlias.ReceiveChild
+    """
+    , init =
+        [ Sandbox.sendMsg (ComponentAlias.Show "Hej")
+            |> Sandbox.delay 500
         ]
+    , onMsgOut = \msgOut ->
+        case msgOut of
+            ComponentAlias.SpawnRendererFor str ->
+                [ Sandbox.spawnChild str ComponentAlias.ReceiveChild
+                    |> Sandbox.delay 500
+                ]
+    }
 
 

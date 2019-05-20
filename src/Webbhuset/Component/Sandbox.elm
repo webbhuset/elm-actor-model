@@ -6,7 +6,7 @@ module Webbhuset.Component.Sandbox exposing
     , elmUILayout
     , service
     , sendMsg
-    , sendMsgWithDelay
+    , delay
     , spawnChild
     )
 
@@ -66,7 +66,7 @@ with a list of Actions you want to perform on your sandboxed component.
 
 ## Actions
 
-@docs sendMsg, spawnChild, sendMsgWithDelay
+@docs sendMsg, spawnChild, delay
 
 -}
 
@@ -89,36 +89,38 @@ import Browser.Navigation as Nav
 import Browser
 import Markdown
 import Url exposing (Url)
+import List.Extra as List
 
 
 {-| The Application model
 
 -}
-type alias Model m msgIn =
-    System.Model ActorName (Process m msgIn)
+type alias Model m =
+    System.Model ActorName (Process m)
 
 
 {-| The Program type of your main function.
 
 -}
-type alias SandboxProgram model msgIn =
-    Program () (Model model msgIn) (Msg msgIn)
+type alias SandboxProgram model i o =
+    Program () (Model model) (Msg i o)
 
 
 {-| A test case for the Component
 
 -}
-type alias TestCase msgIn =
+type alias TestCase msgIn msgOut =
     { title : String
     , desc : String
     , init : List (Action msgIn)
+    , onMsgOut : msgOut -> List (Action msgIn)
     }
 
 
 type Action msgIn
     = SendMsg msgIn
-    | SendMsgWithDelay Float msgIn
-    | SpawnLorem String (PID -> msgIn)
+    | SpawnChild String (PID -> msgIn)
+    | Delay Float (Action msgIn)
 
 
 {-| Spawn a child component and send the PID to your component.
@@ -132,7 +134,20 @@ component is rendered (using `renderPID` in your layout component).
 -}
 spawnChild : String -> (PID -> msgIn) -> Action msgIn
 spawnChild =
-    SpawnLorem
+    SpawnChild
+
+
+
+{-| Perform a delayed action on your sandboxed component. Delay in
+milliseconds.
+
+    Sandbox.sendMsg YourComponent.SomeMessage
+        |> Sandbox.delay 1000
+
+-}
+delay : Float -> Action msgIn -> Action msgIn
+delay =
+    Delay
 
 
 {-| Send a message to you sandboxed component
@@ -145,29 +160,18 @@ sendMsg =
     SendMsg
 
 
-{-| Send a delayed message to you sandboxed component. Delay in
-milli-seconds.
-
-    Sandbox.sendMsgWithDelay 1000 YourComponent.SomeMessage
-
--}
-sendMsgWithDelay : Float -> msgIn -> Action msgIn
-sendMsgWithDelay =
-    SendMsgWithDelay
-
-
 {-| Sandbox a UI Component
 
 -}
 ui :
     { title : String
     , component : InternalC.UI model msgIn msgOut output
-    , cases : List (TestCase msgIn)
+    , cases : List (TestCase msgIn msgOut)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
     , wrapView : output -> Html msgIn
     }
-    -> SandboxProgram model msgIn
+    -> SandboxProgram model msgIn msgOut
 ui ({ component } as args) =
     Actor.fromUI
         { wrapModel = P_Component
@@ -181,7 +185,12 @@ ui ({ component } as args) =
         , subs = component.subs
         , view = component.view >> args.wrapView
         }
-        |> toApplication args
+        |> toApplication
+            { title = args.title
+            , cases = args.cases
+            , stringifyMsgIn = args.stringifyMsgIn
+            , stringifyMsgOut = args.stringifyMsgOut
+            }
 
 
 {-| Sandbox a Layout Component
@@ -189,13 +198,13 @@ ui ({ component } as args) =
 -}
 layout :
     { title : String
-    , component : Component.Layout model msgIn msgOut (Msg msgIn)
-    , cases : List (TestCase msgIn)
+    , component : Component.Layout model msgIn msgOut (Msg msgIn msgOut)
+    , cases : List (TestCase msgIn msgOut)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
-    , wrapView : (msgIn -> Msg msgIn) -> Html (Msg msgIn) -> Html (Msg msgIn)
+    , wrapView : (msgIn -> Msg msgIn msgOut) -> Html (Msg msgIn msgOut) -> Html (Msg msgIn msgOut)
     }
-    -> SandboxProgram model msgIn
+    -> SandboxProgram model msgIn msgOut
 layout ({ component } as args) =
     Actor.fromLayout
         { wrapModel = P_Component
@@ -208,7 +217,12 @@ layout ({ component } as args) =
                 (component.view toSelf model renderPID)
                     |> args.wrapView toSelf
         }
-        |> toApplication args
+        |> toApplication
+            { title = args.title
+            , cases = args.cases
+            , stringifyMsgIn = args.stringifyMsgIn
+            , stringifyMsgOut = args.stringifyMsgOut
+            }
 
 
 {-| Sandbox a Elm UI Layout Component
@@ -216,13 +230,13 @@ layout ({ component } as args) =
 -}
 elmUILayout :
     { title : String
-    , component : ElmUI_Component.Layout model msgIn msgOut (Msg msgIn)
-    , cases : List (TestCase msgIn)
+    , component : ElmUI_Component.Layout model msgIn msgOut (Msg msgIn msgOut)
+    , cases : List (TestCase msgIn msgOut)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
-    , wrapView : (msgIn -> Msg msgIn) -> Element (Msg msgIn) -> Html (Msg msgIn)
+    , wrapView : (msgIn -> Msg msgIn msgOut) -> Element (Msg msgIn msgOut) -> Html (Msg msgIn msgOut)
     }
-    -> SandboxProgram model msgIn
+    -> SandboxProgram model msgIn msgOut
 elmUILayout ({ component } as args) =
     Actor.fromLayout
         { wrapModel = P_Component
@@ -238,7 +252,12 @@ elmUILayout ({ component } as args) =
             (component.view toSelf model (Element.paragraph [] << List.singleton << Element.html << renderPID))
                 |> args.wrapView toSelf
         }
-        |> toApplication args
+        |> toApplication
+            { title = args.title
+            , cases = args.cases
+            , stringifyMsgIn = args.stringifyMsgIn
+            , stringifyMsgOut = args.stringifyMsgOut
+            }
 
 {-| Sandbox a Service Component
 
@@ -249,12 +268,12 @@ your service component.
 service :
     { title : String
     , component : Component.Service model msgIn msgOut
-    , cases : List (TestCase msgIn)
+    , cases : List (TestCase msgIn msgOut)
     , view : model -> Html msgIn
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
     }
-    -> SandboxProgram model msgIn
+    -> SandboxProgram model msgIn msgOut
 service args =
     Actor.fromUI
         { wrapModel = P_Component
@@ -268,14 +287,23 @@ service args =
         , subs = args.component.subs
         , view = args.view
         }
-        |> toApplication args
+        |> toApplication
+            { title = args.title
+            , cases = args.cases
+            , stringifyMsgIn = args.stringifyMsgIn
+            , stringifyMsgOut = args.stringifyMsgOut
+            }
 
 
+
+toApplication : Args i o
+    -> Actor model (Process model) (Msg i o)
+    -> SandboxProgram model i o
 toApplication args testedActor =
     System.application
-        { init = initApp args.title
-        , spawn = spawn args.stringifyMsgIn args.cases testedActor
-        , apply = applyModel args.stringifyMsgIn args.cases testedActor
+        { init = initApp
+        , spawn = spawn args testedActor
+        , apply = applyModel args testedActor
         , view = Html.div []
         , onUrlRequest =
             \urlRequest ->
@@ -301,18 +329,14 @@ toApplication args testedActor =
         }
 
 
-initApp : String -> () -> Url -> Nav.Key -> Msg msgIn
-initApp title _ url key =
+initApp : () -> Url -> Nav.Key -> Msg msgIn msgOut
+initApp _ url key =
     System.batch
         [ System.withSingletonPID DevActor System.addView
         , Navigation.Init key url
             |> NavMsg
             |> System.toAppMsg
             |> System.sendToSingleton Navigation
-        , SetTitle title
-              |> DevMsg
-              |> System.toAppMsg
-              |> System.sendToSingleton DevActor
         , UrlChanged url
             |> DevMsg
             |> System.toAppMsg
@@ -320,7 +344,7 @@ initApp title _ url key =
         ]
 
 
-testedMapIn : AppMsg msgIn -> Maybe msgIn
+testedMapIn : AppMsg i o -> Maybe i
 testedMapIn appMsg =
     case appMsg of
         ComponentMsg msg ->
@@ -330,12 +354,10 @@ testedMapIn appMsg =
             Nothing
 
 
-testedMapOut : (msgOut -> String) -> PID -> msgOut -> Msg msgIn
+testedMapOut : (msgOut -> String) -> PID -> msgOut -> Msg msgIn msgOut
 testedMapOut toString pid componentMsg =
     componentMsg
-        |> toString
-        |> OutMessage
-        |> AddMsg pid
+        |> HandleMsgOut pid
         |> DevMsg
         |> System.toAppMsg
         |> System.sendToSingleton DevActor
@@ -352,34 +374,33 @@ type ActorName
     | LoremIpsum
 
 
-type Process model msgIn
-    = P_Dev (DevModel msgIn)
+type Process model
+    = P_Dev DevModel
     | P_Component model
     | P_Nav Navigation.Model
     | P_LoremIpsum LoremIpsum.Model
 
 
-type alias Msg msgIn =
-    System.SysMsg ActorName (AppMsg msgIn)
+type alias Msg msgIn msgOut =
+    System.SysMsg ActorName (AppMsg msgIn msgOut)
 
 
-type AppMsg msgIn
-    = DevMsg (MsgIn msgIn)
+type AppMsg msgIn msgOut
+    = DevMsg (MsgIn msgIn msgOut)
     | ComponentMsg msgIn
     | NavMsg Navigation.MsgIn
     | LoremIpsumMsg LoremIpsum.MsgIn
 
 
-spawn : (msgIn -> String)
-    -> List (TestCase msgIn)
-    -> Actor model (Process model msgIn) (Msg msgIn)
+spawn : Args i o
+    -> Actor model (Process model) (Msg i o)
     -> ActorName
     -> PID
-    -> ( Process model msgIn, Msg msgIn )
-spawn toString cases tested name =
+    -> ( Process model, Msg i o )
+spawn args tested name =
     case name of
         DevActor ->
-            .init (sandboxActor toString cases)
+            .init (sandboxActor args)
 
         TestedActor ->
             tested.init
@@ -392,15 +413,14 @@ spawn toString cases tested name =
 
 
 applyModel :
-    (msgIn -> String)
-    -> List (TestCase msgIn)
-    -> Actor model (Process model msgIn) (Msg msgIn)
-    -> Process model msgIn
-    -> System.AppliedActor (Process model msgIn) (Html (Msg msgIn)) (Msg msgIn)
-applyModel toString cases testedActor process =
+    Args i o
+    -> Actor model (Process model) (Msg i o)
+    -> Process model
+    -> System.AppliedActor (Process model) (Html (Msg i o)) (Msg i o)
+applyModel args testedActor process =
     case process of
         P_Dev model ->
-            System.applyModel (sandboxActor toString cases) model
+            System.applyModel (sandboxActor args) model
 
         P_Component model ->
             System.applyModel testedActor model
@@ -413,7 +433,7 @@ applyModel toString cases testedActor process =
 
 -- Lorem Ipsum
 
-loremIpsum : Actor LoremIpsum.Model (Process model msgIn) (Msg msgIn)
+loremIpsum : Actor LoremIpsum.Model (Process model) (Msg msgIn msgOut)
 loremIpsum =
     Actor.fromUI
         { wrapModel = P_LoremIpsum
@@ -424,7 +444,7 @@ loremIpsum =
         LoremIpsum.component
 
 
-loremIpsumMapIn : AppMsg msgIn -> Maybe LoremIpsum.MsgIn
+loremIpsumMapIn : AppMsg i o -> Maybe LoremIpsum.MsgIn
 loremIpsumMapIn appMsg =
     case appMsg of
         LoremIpsumMsg msg ->
@@ -435,7 +455,7 @@ loremIpsumMapIn appMsg =
 
 -- Navigation
 
-navigation : Actor Navigation.Model (Process model msgIn) (Msg msgIn)
+navigation : Actor Navigation.Model (Process model) (Msg msgIn msgOut)
 navigation =
     Actor.fromService
         { wrapModel = P_Nav
@@ -446,7 +466,7 @@ navigation =
         Navigation.component
 
 
-navigationMapIn : AppMsg msgIn -> Maybe Navigation.MsgIn
+navigationMapIn : AppMsg i o -> Maybe Navigation.MsgIn
 navigationMapIn appMsg =
     case appMsg of
         NavMsg msg ->
@@ -456,7 +476,7 @@ navigationMapIn appMsg =
             Nothing
 
 
-navigationMapOut : PID -> Navigation.MsgOut -> Msg msgIn
+navigationMapOut : PID -> Navigation.MsgOut -> Msg msgIn msgOut
 navigationMapOut self componentMsg =
     case componentMsg of
         Navigation.NoOut ->
@@ -464,24 +484,33 @@ navigationMapOut self componentMsg =
 
 -- Test Runner Actor
 
+type alias Args i o =
+    { title : String
+    , cases : List (TestCase i o)
+    , stringifyMsgIn : i -> String
+    , stringifyMsgOut : o -> String
+    }
 
-sandboxActor : (msgIn -> String) -> List (TestCase msgIn) -> Actor (DevModel msgIn) (Process model msgIn) (Msg msgIn)
-sandboxActor toString cases =
+
+sandboxActor : Args i o -> Actor DevModel (Process model) (Msg i o)
+sandboxActor args =
     Actor.fromLayout
         { wrapModel = P_Dev
         , wrapMsg = DevMsg
         , mapIn = mapIn
-        , mapOut = mapOut toString
+        , mapOut = mapOut args.stringifyMsgIn
         }
         (sandboxComponent
             { cases =
-                List.indexedMap Tuple.pair cases
+                List.indexedMap Tuple.pair args.cases
                     |> Dict.fromList
+            , stringifyMsgOut = args.stringifyMsgOut
+            , title = args.title
             }
         )
 
 
-mapIn : AppMsg msgIn -> Maybe (MsgIn msgIn)
+mapIn : AppMsg i o -> Maybe (MsgIn i o)
 mapIn appMsg =
     case appMsg of
         DevMsg msg ->
@@ -491,7 +520,7 @@ mapIn appMsg =
             Nothing
 
 
-mapOut : (msgIn -> String) -> PID -> MsgOut msgIn -> Msg msgIn
+mapOut : (msgIn -> String) -> PID -> MsgOut msgIn msgOut -> Msg msgIn msgOut
 mapOut toString p componentMsg =
     case componentMsg of
         Spawn replyPID reply ->
@@ -510,7 +539,7 @@ mapOut toString p componentMsg =
                     System.batch
                         [ toString msg
                             |> InMessage
-                            |> AddMsg subject
+                            |> LogMsg subject
                             |> DevMsg
                             |> System.toAppMsg
                             |> System.sendToSingleton DevActor
@@ -519,10 +548,10 @@ mapOut toString p componentMsg =
                             |> System.sendToPID subject
                         ]
 
-                SendMsgWithDelay delay msgIn ->
+                Delay _ _ ->
                     System.none -- handled in sandbox component
 
-                SpawnLorem title reply ->
+                SpawnChild title reply ->
                     System.spawn LoremIpsum
                         (\newPid ->
                             System.batch
@@ -537,7 +566,7 @@ mapOut toString p componentMsg =
                                 , reply newPid
                                     |> toString
                                     |> InMessage
-                                    |> AddMsg subject
+                                    |> LogMsg subject
                                     |> DevMsg
                                     |> System.toAppMsg
                                     |> System.sendToSingleton DevActor
@@ -554,12 +583,14 @@ mapOut toString p componentMsg =
 
 -- Test Runner Component
 
-type alias Config msgIn =
-    { cases : Dict Int (TestCase msgIn)
+type alias Config msgIn msgOut =
+    { cases : Dict Int (TestCase msgIn msgOut)
+    , stringifyMsgOut : msgOut -> String
+    , title : String
     }
 
 
-sandboxComponent : Config msgIn -> Component.Layout (DevModel msgIn) (MsgIn msgIn) (MsgOut msgIn) msg
+sandboxComponent : Config i o -> Component.Layout DevModel (MsgIn i o) (MsgOut i o) msg
 sandboxComponent config =
     { init = init config
     , update = update config
@@ -580,15 +611,11 @@ type Message
     | OutMessage String
 
 
-type alias DevModel msgIn =
+type alias DevModel =
     { pid : PID
-    , cases : Dict Int (TestCase msgIn)
     , pids : Dict Int Child
     , messages : Dict String (List Message)
     , displayCase : Maybe Int
-    , bgColor : String
-    , testCaseBgColor : String
-    , componentViewBgColor : String
     , title : String
     , currentUrl : Maybe Url
     }
@@ -600,18 +627,19 @@ type alias DevModel msgIn =
 --
 
 
-type MsgIn msgIn
+type MsgIn msgIn msgOut
     = NewPID Int PID
     | ReInit Int
     | SetTitle String
-    | AddMsg PID Message
+    | LogMsg PID Message
     | UrlChanged Url
-    | ForwardMsg (MsgOut msgIn)
     | NavigateTo String
+    | RunAction PID (Action msgIn)
+    | HandleMsgOut PID msgOut
 
 
-type MsgOut msgIn
-    = Spawn PID (PID -> MsgIn msgIn)
+type MsgOut msgIn msgOut
+    = Spawn PID (PID -> MsgIn msgIn msgOut)
     | SetPageTitle String
     | PerformAction PID (Action msgIn)
     | NavigateToHref String
@@ -623,18 +651,14 @@ type MsgOut msgIn
 --
 
 
-init : Config msgIn -> PID -> ( DevModel msgIn, List (MsgOut msgIn), Cmd (MsgIn msgIn) )
+init : Config i o -> PID -> ( DevModel, List (MsgOut i o), Cmd (MsgIn i o) )
 init config pid =
     ( { pid = pid
-      , cases = config.cases
       , pids = Dict.empty
       , displayCase = Nothing
       , messages = Dict.empty
-      , bgColor = "#333"
-      , testCaseBgColor = "#fff"
-      , componentViewBgColor = "transparent"
-      , title = ""
       , currentUrl = Nothing
+      , title = config.title
       }
     , config.cases
         |> Dict.keys
@@ -646,50 +670,19 @@ init config pid =
     )
 
 
-kill : DevModel msgIn -> List (MsgOut msgIn)
+kill : DevModel -> List (MsgOut msgIn msgOut)
 kill model =
     []
 
 
-update : Config msgIn -> (MsgIn msgIn) -> DevModel msgIn -> ( DevModel msgIn, List (MsgOut msgIn), Cmd (MsgIn msgIn) )
+update : Config i o -> (MsgIn i o) -> DevModel -> ( DevModel, List (MsgOut i o), Cmd (MsgIn i o) )
 update config msgIn model =
     case msgIn of
         NewPID idx pid ->
             let
                 (outMsgs, cmds) =
                     Dict.get idx config.cases
-                        |> Maybe.map
-                            (\testCase ->
-                                testCase.init
-                                    |> List.partition
-                                        (\action ->
-                                            case action of
-                                                SendMsgWithDelay _ _ ->
-                                                    False
-
-                                                _ ->
-                                                    True
-                                        )
-                                    |> Tuple.mapFirst (List.map (PerformAction pid))
-                                    |> Tuple.mapSecond
-                                        (List.filterMap
-                                            (\action ->
-                                                case action of
-                                                    SendMsgWithDelay delay msg ->
-                                                        Component.toCmdWithDelay
-                                                            delay
-                                                            (SendMsg msg
-                                                                |> PerformAction pid
-                                                                |> ForwardMsg
-                                                            )
-                                                            |> Just
-
-                                                    _ ->
-                                                        Nothing
-                                            )
-                                            >> Cmd.batch
-                                        )
-                            )
+                        |> Maybe.map (\testCase -> runActions pid testCase.init)
                         |> Maybe.withDefault ( [], Cmd.none )
             in
             ( { model | pids = Dict.insert idx (Child pid) model.pids }
@@ -697,10 +690,51 @@ update config msgIn model =
             , cmds
             )
 
-        ForwardMsg msgOut ->
+        RunAction pid action ->
+            let
+                ( msgs, cmds ) =
+                    runActions pid [ action ]
+            in
             ( model
-            , [ msgOut ]
-            , Cmd.none
+            , msgs
+            , cmds
+            )
+
+        HandleMsgOut pid msgOut ->
+            let
+                msgStr =
+                    config.stringifyMsgOut msgOut
+                        |> OutMessage
+
+                ( outMsgs, cmds ) =
+                    findIdxFromPID pid model.pids
+                        |> Maybe.andThen (\idx -> Dict.get idx config.cases)
+                        |> Maybe.map
+                            (\test ->
+                                test.onMsgOut msgOut
+                                    |> runActions pid
+                            )
+                        |> Maybe.withDefault ( [], Cmd.none )
+            in
+            ( { model
+                | messages =
+                    Dict.update
+                        (PID.toString pid)
+                        (\mbMsg ->
+                            case mbMsg of
+                                Just messages ->
+                                    msgStr
+                                        :: messages
+                                        |> Just
+
+                                Nothing ->
+                                    [ msgStr ]
+                                        |> Just
+                        )
+                        model.messages
+              }
+            , outMsgs
+            , cmds
             )
 
         ReInit idx ->
@@ -716,7 +750,7 @@ update config msgIn model =
             , Cmd.none
             )
 
-        AddMsg pid message ->
+        LogMsg pid message ->
             ( { model
                 | messages =
                     Dict.update
@@ -755,7 +789,7 @@ update config msgIn model =
 
                         title =
                             idx
-                                |> Maybe.andThen (\i -> Dict.get i model.cases)
+                                |> Maybe.andThen (\i -> Dict.get i config.cases)
                                 |> Maybe.map .title
                                 |> Maybe.withDefault model.title
                     in
@@ -849,6 +883,39 @@ buildHref path query =
 
 
 
+findIdxFromPID : PID -> Dict Int Child -> Maybe Int
+findIdxFromPID pid dict =
+    dict
+        |> Dict.toList
+        |> List.find (\( _, child ) -> child.pid == pid)
+        |> Maybe.map Tuple.first
+
+
+runActions : PID -> List (Action i) -> ( List (MsgOut i o), Cmd (MsgIn i o) )
+runActions pid actions =
+    actions
+        |> List.foldl
+            (\action ( msgs, cmds ) ->
+                case action of
+                    Delay delay_ delayedAction ->
+                        ( msgs
+                        , cmds
+                            ++ [ Component.toCmdWithDelay
+                                    delay_
+                                    (delayedAction
+                                        |> RunAction pid
+                                    )
+                                ]
+                        )
+
+                    _ ->
+                        ( msgs ++ [ PerformAction pid action ]
+                        , cmds
+                        )
+            )
+            ( [], [] )
+        |> Tuple.mapSecond Cmd.batch
+
 
 -- VIEW
 
@@ -886,7 +953,7 @@ colorsFromQueryParams queryParams =
     }
 
 
-view : Config msgIn -> ((MsgIn msgIn) -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
+view : Config msgIn msgOut -> ((MsgIn msgIn msgOut) -> msg) -> DevModel -> (PID -> Html msg) -> Html msg
 view config toSelf model renderPID =
     let
         ( currentPath, queryParams ) =
@@ -895,7 +962,7 @@ view config toSelf model renderPID =
                 |> Maybe.withDefault ( [], Dict.empty )
 
         testCases =
-            model.cases
+            config.cases
                 |> Dict.toList
 
         color =
@@ -910,7 +977,7 @@ view config toSelf model renderPID =
             in
             resolve (Dict.get "fullscreen" queryParams) <|\_ -> 
             resolve model.displayCase <| \caseIdx ->
-            resolve (Dict.get caseIdx model.cases) <| \testCase ->
+            resolve (Dict.get caseIdx config.cases) <| \testCase ->
             resolve (Dict.get caseIdx model.pids) <| \child ->
                 Just ( caseIdx, testCase, child )
     in
@@ -933,13 +1000,13 @@ view config toSelf model renderPID =
                     ]
                 , pageHeader toSelf model color
                 , Html.hr [ HA.class "ams-hr" ] []
-                , testCaseSelectBox toSelf model
+                , testCaseSelectBox config toSelf model
                 , Html.div
                     []
                     ( model.displayCase
                         |> Maybe.andThen
                             (\idx ->
-                                Dict.get idx model.cases
+                                Dict.get idx config.cases
                                     |> Maybe.map
                                         (\testCase ->
                                             let
@@ -967,7 +1034,7 @@ view config toSelf model renderPID =
                 ]
 
 
-pageHeader : (MsgIn msgIn -> msg) -> DevModel msgIn -> ColorConfig -> Html msg
+pageHeader : (MsgIn msgIn msgOut -> msg) -> DevModel -> ColorConfig -> Html msg
 pageHeader toSelf model color =
     let
         ( currentPath, queryParams ) =
@@ -1035,7 +1102,7 @@ pageHeader toSelf model color =
 
 
 
-fullscreenToggle : (MsgIn msgIn -> msg) -> DevModel msgIn -> Int -> Html msg
+fullscreenToggle : (MsgIn msgIn msgOut -> msg) -> DevModel -> Int -> Html msg
 fullscreenToggle toSelf model testCaseIdx =
     let
         ( currentPath, queryParams ) =
@@ -1063,11 +1130,11 @@ fullscreenToggle toSelf model testCaseIdx =
         ]
 
 
-testCaseSelectBox : (MsgIn msgIn -> msg) -> DevModel msgIn -> Html msg
-testCaseSelectBox toSelf model =
+testCaseSelectBox : Config msgIn msgOut -> (MsgIn msgIn msgOut -> msg) -> DevModel -> Html msg
+testCaseSelectBox config toSelf model =
     let
         testCases =
-            model.cases
+            config.cases
                 |> Dict.toList
 
         ( currentPath, queryParams ) =
@@ -1127,7 +1194,7 @@ colorInput htmlID label color toMsg =
         ]
 
 
-renderChild : DevModel m -> ((MsgIn m) -> msg) -> (PID -> Html msg) -> Int -> TestCase m -> Child -> Html msg
+renderChild : DevModel -> ((MsgIn i o) -> msg) -> (PID -> Html msg) -> Int -> TestCase i o -> Child -> Html msg
 renderChild model toSelf renderPID idx testCase child =
     Html.div
         [ HA.class "ams-testcase"

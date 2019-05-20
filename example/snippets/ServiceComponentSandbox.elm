@@ -6,7 +6,7 @@ import Html exposing (Html)
 import ServiceComponent as ComponentAlias
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
+main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
 main =
     Sandbox.service
         { title = "Service Component"
@@ -31,16 +31,19 @@ view model =
 
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn
+test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
 test_init =
-    Sandbox.TestCase
-        "Test case title"
-        """
+    { title = "Test case title"
+    , desc =
+    """
 # Describe test case here.
 
 You can use Markdown
-        """
+    """
+    , init =
         [ Sandbox.sendMsg ComponentAlias.NoIn -- A list of MsgIn to put the tested componet in the right state.
         ]
+    , onMsgOut = always []
+    }
 
 
