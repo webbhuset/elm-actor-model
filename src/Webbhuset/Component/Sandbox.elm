@@ -30,9 +30,9 @@ test cases.
 
 A sandbox module example for `YourComponent`:
 
-    import YourComponent
+    import YourComponent exposing (Model, MsgIn, MsgOut)
 
-    main : SandboxProgram YourComponent.Model YourComponent.MsgIn
+    main : SandboxProgram Model MsgIn MsgOut
     main =
         Sandbox.ui
             { title = "Title of your component"
@@ -43,6 +43,7 @@ A sandbox module example for `YourComponent`:
                 ]
             , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
             , stringifyMsgOut = Debug.toString
+            , wrapView = identity
             }
 
 
@@ -52,17 +53,25 @@ A sandbox module example for `YourComponent`:
 
 A Test Case is just a record with a title and description together
 with a list of Actions you want to perform on your sandboxed component.
+You can also the component's map out messages to actions to simulate the outside system.
 
 @docs TestCase
 
-    testCase1 : Sandbox.TestCase YourComponent.MsgIn
+    testCase1 : Sandbox.TestCase MsgIn MsgOut
     testCase1 =
-        Sandbox.TestCase
-            "Test Case Title"
-            "Test Case Description"
+        { title = "Test Case Title"
+        , desc = "Test Case Description"
+        , init =
             [ Sandbox.sendMsg YourComponent.Hello
             , Sandbox.spawnChild "Child Title" YourComponent.ReceiveChildPID
             ]
+        , onMsgOut = \msgOut ->
+            case msgOut of
+                YourComponent.ObserveSomething id ->
+                    [ YourComponent.RecevieDataFor id "Some data"
+                        |> Sandbox.sendMsg
+                        |> Sandbox.delay 1000
+                    ]
 
 ## Actions
 
@@ -102,8 +111,8 @@ type alias Model m =
 {-| The Program type of your main function.
 
 -}
-type alias SandboxProgram model i o =
-    Program () (Model model) (Msg i o)
+type alias SandboxProgram model msgIn msgOut =
+    Program () (Model model) (Msg msgIn msgOut)
 
 
 {-| A test case for the Component

@@ -11,7 +11,6 @@ import Element exposing (Element)
 
 type MsgIn
     = NoIn
-    | Show String
     | ReceiveChild PID
 
 
@@ -65,13 +64,6 @@ update msgIn model =
         NoIn ->
             ( model
             , []
-            , Cmd.none
-            )
-
-        Show ->
-            ( model
-            , [ SpawnRendererFor str
-              ]
             , Cmd.none
             )
 

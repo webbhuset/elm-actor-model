@@ -8,7 +8,7 @@ import Element exposing (Element)
 import Html exposing (Html)
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn
+main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
 main =
     Sandbox.elmUILayout
         { title = "Elm UI Layout Component"
