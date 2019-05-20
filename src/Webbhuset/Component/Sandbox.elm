@@ -860,17 +860,29 @@ type alias ColorConfig =
     }
 
 
+defaultColors : ColorConfig
+defaultColors =
+    { bgColor = "#888"
+    , testCaseBgColor = "#fff"
+    , componentBgColor = "transparent"
+    }
+
+
 colorsFromQueryParams : Dict String String -> ColorConfig
 colorsFromQueryParams queryParams =
+    let
+        default =
+            defaultColors
+    in
     { bgColor =
         Dict.get "bgColor" queryParams
-            |> Maybe.withDefault "#888"
+            |> Maybe.withDefault default.bgColor
     , testCaseBgColor =
         Dict.get "testCaseBgColor" queryParams
-            |> Maybe.withDefault "#fff"
+            |> Maybe.withDefault default.testCaseBgColor
     , componentBgColor =
         Dict.get "componentBgColor" queryParams
-            |> Maybe.withDefault "transparent"
+            |> Maybe.withDefault default.componentBgColor
     }
 
 
@@ -967,6 +979,15 @@ pageHeader toSelf model color =
             buildHref
                 currentPath
                 (Dict.insert key val queryParams)
+
+        resetColors =
+            queryParams
+                |> Dict.remove "bgColor"
+                |> Dict.remove "testCaseBgColor"
+                |> Dict.remove "componentBgColor"
+                |> buildHref currentPath
+                |> NavigateTo
+                |> toSelf
     in
     Html.div
         [ HA.class "ams-page-header"
@@ -975,30 +996,41 @@ pageHeader toSelf model color =
             [ HA.class "ams-pagetitle"
             ]
             [ Html.text model.title ]
-        , colorInput
-            "body-bg"
-            "Body Bg"
-            color.bgColor
-            (colorHref "bgColor"
-                >> NavigateTo
-                >> toSelf
-            )
-        , colorInput
-            "body-bg"
-            "Test case Bg"
-            color.testCaseBgColor
-            (colorHref "testCaseBgColor"
-                >> NavigateTo
-                >> toSelf
-            )
-        , colorInput
-            "body-bg"
-            "Component Bg"
-            color.componentBgColor
-            (colorHref "componentBgColor"
-                >> NavigateTo
-                >> toSelf
-            )
+        , Html.div
+            [ HA.class "ams-colortoolbar"
+            ]
+            [ colorInput
+                "body-bg"
+                "Body Bg"
+                color.bgColor
+                (colorHref "bgColor"
+                    >> NavigateTo
+                    >> toSelf
+                )
+            , colorInput
+                "body-bg"
+                "Test case Bg"
+                color.testCaseBgColor
+                (colorHref "testCaseBgColor"
+                    >> NavigateTo
+                    >> toSelf
+                )
+            , colorInput
+                "body-bg"
+                "Component Bg"
+                color.componentBgColor
+                (colorHref "componentBgColor"
+                    >> NavigateTo
+                    >> toSelf
+                )
+            , Html.button
+                [ Events.onClick resetColors
+                , HA.class "ams-button--alt"
+                , HA.style "margin-left" "16px"
+                ]
+                [ Html.text "Reset colors"
+                ]
+            ]
         ]
 
 
@@ -1100,17 +1132,8 @@ renderChild model toSelf renderPID idx testCase child =
     Html.div
         [ HA.class "ams-testcase"
         ]
-        [ Html.h2 
-            [ HA.class "ams-testcase__title"
-            ]
-            [ Html.text testCase.title
-            ]
-        , Markdown.toHtml
-            [ HA.class "ams-testcase__desc"
-            ]
-            testCase.desc
-        , Html.div
-            [ HA.class "ams-cornerarea"
+        [ Html.div
+            [ HA.class "ams-testcase__toolbar"
             ]
             [ child.pid
                 |> (\(PID _ p) -> "PID: " ++ String.fromInt p)
@@ -1125,47 +1148,60 @@ renderChild model toSelf renderPID idx testCase child =
                 [ Html.text "Reset test"
                 ]
             ]
-        , section
-            [ heading 5 "Component view:"
-            , Html.div
-                [ HA.class "ams-testcase__componentview"
-                ]
-                [ renderPID child.pid
-                ]
+        , Html.div
+            [ HA.class "ams-testcase__content"
             ]
-        , section
-            [ heading 5 "Message log:"
-            , Html.div
-                [ HA.class "ams-messagelog"
+            [ Html.h2 
+                [ HA.class "ams-testcase__title"
                 ]
-                (model.messages
-                    |> Dict.get (PID.toString child.pid)
-                    |> Maybe.map
-                        (List.reverse
-                            >> List.map
-                                (\message ->
-                                    case message of
-                                        InMessage inMsg ->
-                                            "> "
-                                                ++ inMsg
-                                                |> Html.text
-                                                |> List.singleton
-                                                |> Html.span
-                                                    [ HA.class "ams-messagelog__inmsg"
-                                                    ]
+                [ Html.text testCase.title
+                ]
+            , Markdown.toHtml
+                [ HA.class "ams-testcase__desc"
+                ]
+                testCase.desc
+            , section
+                [ heading 5 "Component view:"
+                , Html.div
+                    [ HA.class "ams-testcase__componentview"
+                    ]
+                    [ renderPID child.pid
+                    ]
+                ]
+            , section
+                [ heading 5 "Message log:"
+                , Html.div
+                    [ HA.class "ams-messagelog"
+                    ]
+                    (model.messages
+                        |> Dict.get (PID.toString child.pid)
+                        |> Maybe.map
+                            (List.reverse
+                                >> List.map
+                                    (\message ->
+                                        case message of
+                                            InMessage inMsg ->
+                                                "> "
+                                                    ++ inMsg
+                                                    |> Html.text
+                                                    |> List.singleton
+                                                    |> Html.span
+                                                        [ HA.class "ams-messagelog__inmsg"
+                                                        ]
 
-                                        OutMessage outMsg ->
-                                            "  -> "
-                                                ++ outMsg
-                                                |> Html.text
-                                                |> List.singleton
-                                                |> Html.span
-                                                    [ HA.class "ams-messagelog__outmsg"
-                                                    ]
-                                )
-                        )
-                    |> Maybe.withDefault []
-                )
+                                            OutMessage outMsg ->
+                                                "  -> "
+                                                    ++ outMsg
+                                                    |> Html.text
+                                                    |> List.singleton
+                                                    |> Html.span
+                                                        [ HA.class "ams-messagelog__outmsg"
+                                                        ]
+                                    )
+                            )
+                        |> Maybe.withDefault []
+                    )
+                ]
             ]
         ]
 
@@ -1224,6 +1260,7 @@ css =
         flex-direction: row;
         justify-content: center;
         align-items: center;
+        flex-wrap: wrap;
         margin: 1rem 0 0 0;
     }
     .ams-pagetitle {
@@ -1263,7 +1300,8 @@ css =
         border-color: #fff;
     }
 
-    .ams-button {
+    .ams-button, 
+    .ams-button--alt {
         -webkit-appearance: none;
         background: #888;
         padding: 0.25rem 1rem;
@@ -1277,15 +1315,42 @@ css =
         font-family: sans-serif;
     }
 
+    .ams-button--alt {
+        background: #555;
+    }
+
+    .ams-button--alt:hover {
+        background: #000;
+    }
+
     .ams-button:hover {
         background: #555;
-        font-family: sans-serif;
+    }
+
+    .ams-colortoolbar {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        flex-wrap: wrap;
     }
 
     .ams-colorinput__row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
     }
+
+    @media all and (max-width: 650px) {
+        .ams-colorinput__row {
+            width: 100%;
+        }
+    }
+
     .ams-colorinput__label {
         padding: 0 1rem;
+        line-height: 1;
+        font-size: 0.8rem;
         color: #fff;
         font-family: monospace;
     }
@@ -1293,12 +1358,19 @@ css =
     /** Test Case **/
     .ams-testcase {
         border-radius: 4px;
-        padding: 1rem;
         margin: 1rem 0;
         background: {{testCaseBg}};
         position: relative;
     }
-    .ams-testcase > *:last-child {
+
+    .ams-testcase__content {
+        border-radius: 4px;
+        background: {{testCaseBg}};
+        position: relative;
+        padding: 1rem;
+    }
+
+    .ams-testcase__content > *:last-child {
         margin-bottom: 0;
     }
     .ams-testcase__title {
@@ -1316,14 +1388,19 @@ css =
         background: {{componentBg}};
     }
 
-    .ams-cornerarea {
-        position: absolute;
-        top: 0;
-        right: 0;
-        padding: 0.5rem 1rem;
+    .ams-testcase__toolbar {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+        border-bottom: 1px solid #f6f6f6;
+        padding: 0.5rem 0;
+        background: #f6f6f6;
+        border-top-left-radius: 4px;
+        border-top-right-radius: 4px;
     }
-    .ams-cornerarea > * {
-        margin-left: 1rem;
+    .ams-testcase__toolbar > * {
+        margin-right: 1rem;
     }
     .ams-testcase__pidLabel {
         font-family: monospace;
@@ -1336,7 +1413,7 @@ css =
         border-radius: 4px;
         background: #eee;
         padding: 0.5rem 1rem;
-        min-height: 24;
+        min-height: 16px;
         margin: 0;
     }
     .ams-messagelog__inmsg {
