@@ -543,6 +543,12 @@ mapOut toString p componentMsg =
                                 ]
                         )
 
+        NavigateToHref href ->
+            Navigation.Push href
+                |> NavMsg
+                |> System.toAppMsg
+                |> System.sendToSingleton Navigation
+
 
 
 -- Test Runner Component
@@ -583,6 +589,7 @@ type alias DevModel msgIn =
     , testCaseBgColor : String
     , componentViewBgColor : String
     , title : String
+    , currentUrl : Maybe Url
     }
 
 
@@ -602,12 +609,14 @@ type MsgIn msgIn
     | BgColorPicked String
     | TestCaseBgColorPicked String
     | ComponentBgColorPicked String
+    | NavigateTo String
 
 
 type MsgOut msgIn
     = Spawn PID (PID -> MsgIn msgIn)
     | SetPageTitle String
     | PerformAction PID (Action msgIn)
+    | NavigateToHref String
 
 
 
@@ -627,6 +636,7 @@ init config pid =
       , testCaseBgColor = "#fff"
       , componentViewBgColor = "transparent"
       , title = ""
+      , currentUrl = Nothing
       }
     , config.cases
         |> Dict.keys
@@ -731,121 +741,168 @@ update config msgIn model =
             )
 
         UrlChanged url ->
-            case Maybe.map (String.split "/") url.fragment of
-                Just [ "testcase", n ] ->
-                    let
-                        idx =
-                            String.toInt n
+            let
+                ( path, query ) =
+                    parseUrl url
 
-                        title =
-                            idx
-                                |> Maybe.andThen (\i -> Dict.get i model.cases)
-                                |> Maybe.map .title
-                                |> Maybe.withDefault model.title
-                    in
-                    ( { model | displayCase = idx }
-                    , [ SetPageTitle title
-                      ]
+                strParam key default =
+                    Dict.get key query
+                        |> Maybe.withDefault default
+
+                title =
+                    idx
+                        |> Maybe.andThen (\i -> Dict.get i model.cases)
+                        |> Maybe.map .title
+                        |> Maybe.withDefault model.title
+
+            in
+            case path of
+                [ "testcase", n ] ->
+                    ( { model
+                            | displayCase = String.toInt n
+                            , currentUrl = Just url
+                      }
+                    , [ SetPageTitle title ]
                     , Cmd.none
                     )
 
                 _ ->
-                    ( { model | displayCase = Nothing }
-                    , [ SetPageTitle model.title
-                      ]
+                    ( { model
+                            | displayCase = Nothing
+                            , currentUrl = Just url
+                      }
+                    , [ SetPageTitle model.title ]
                     , Cmd.none
                     )
 
-        BgColorPicked color ->
-            ( { model | bgColor = color }
-            , []
+        NavigateTo href ->
+            ( model
+            , [ NavigateToHref href ]
             , Cmd.none
             )
 
-        TestCaseBgColorPicked color ->
-            ( { model | testCaseBgColor = color }
-            , []
-            , Cmd.none
-            )
 
-        ComponentBgColorPicked color ->
-            ( { model | componentViewBgColor = color }
-            , []
-            , Cmd.none
+parseUrl : Url -> ( List String, Dict String String ) 
+parseUrl url =
+    let
+        toPath pathStr =
+            pathStr
+                |> String.split "/"
+                |> List.map String.trim
+
+        toQuery queryStr =
+            queryStr
+                |> String.split "&"
+                |> List.filterMap
+                    (\paramStr ->
+                        case String.split "=" paramStr of
+                            [ key, val ] ->
+                                Just
+                                    ( String.trim key
+                                    , String.trim val
+                                    )
+                            _ ->
+                                Nothing
+
+                    )
+                |> Dict.fromList
+    in
+    url.fragment
+        |> Maybe.map
+            (String.split "?"
+                >> (\ls ->
+                    case ls of
+                        [ pathStr, queryStr ] ->
+                            ( toPath pathStr
+                            , toQuery queryStr
+                            )
+
+                        [ pathStr ] ->
+                            ( toPath pathStr
+                            , Dict.empty
+                            )
+
+                        _ ->
+                            ( [], Dict.empty )
+                    )
             )
+        |> Maybe.withDefault ( [], Dict.empty )
+
+
+buildHref : List String -> Dict String String -> String
+buildHref path query =
+    let
+        queryString =
+            query
+                |> Dict.toList
+                |> List.map (\( k, v ) -> k ++ "=" ++ v)
+                |> String.join "&"
+
+        pathString =
+            String.join "/" path
+    in
+    if Dict.isEmpty query then
+        "#" ++ pathString
+    else
+        "#" ++ pathString ++ "?" ++ queryString
+
 
 
 
 -- VIEW
 
 
+type alias ColorConfig =
+    { bgColor : String
+    , testCaseBgColor : String
+    , componentBgColor : String
+    }
+
+
+colorsFromQueryParams : Dict String String -> ColorConfig
+colorsFromQueryParams queryParams =
+    { bgColor =
+        Dict.get "bgColor" queryParams
+            |> Maybe.withDefault "#888"
+    , testCaseBgColor =
+        Dict.get "testCaseBgColor" queryParams
+            |> Maybe.withDefault "#fff"
+    , componentBgColor =
+        Dict.get "componentBgColor" queryParams
+            |> Maybe.withDefault "transparent"
+    }
+
+
 view : Config msgIn -> ((MsgIn msgIn) -> msg) -> DevModel msgIn -> (PID -> Html msg) -> Html msg
 view config toSelf model renderPID =
     let
+        ( currentPath, queryParams ) =
+            model.currentUrl
+                |> Maybe.map parseUrl
+                |> Maybe.withDefault ( [], Dict.empty )
+
         testCases =
             model.cases
                 |> Dict.toList
+
+        color =
+            colorsFromQueryParams queryParams
     in
     Html.div
         [ HA.class "ams-pagewrap"
-        , HA.style "background" model.bgColor
+        , HA.style "background" color.bgColor
         ]
         [ Html.node "style"
             []
             [ css
-                |> String.replace "{{bgColor}}" model.bgColor
-                |> String.replace "{{testCaseBg}}" model.testCaseBgColor
-                |> String.replace "{{componentBg}}" model.componentViewBgColor
+                |> String.replace "{{bgColor}}" color.bgColor
+                |> String.replace "{{testCaseBg}}" color.testCaseBgColor
+                |> String.replace "{{componentBg}}" color.componentBgColor
                 |> Html.text
             ]
-        , Html.div
-            [ HA.class "ams-page-header"
-            ]
-            [ Html.h1
-                [ HA.class "ams-pagetitle"
-                ]
-                [ Html.text model.title ]
-            , colorInput
-                "body-bg"
-                "Body Bg"
-                model.bgColor
-                (toSelf << BgColorPicked)
-            , colorInput
-                "body-bg"
-                "Test case Bg"
-                model.testCaseBgColor
-                (toSelf << TestCaseBgColorPicked)
-            , colorInput
-                "body-bg"
-                "Component Bg"
-                model.componentViewBgColor
-                (toSelf << ComponentBgColorPicked)
-            ]
+        , pageHeader toSelf model color
         , Html.hr [ HA.class "ams-hr" ] []
-        , Html.div
-            [
-            ]
-            (testCases
-                |> List.map
-                    (\( idx, testCase ) ->
-                        Html.div
-                            []
-                            [ Html.a
-                                [ HA.href ("#testcase/" ++ (String.fromInt idx))
-                                ]
-                                [ Html.text testCase.title
-                                ]
-                            ]
-                    )
-                |> (::)
-                    ( Html.a
-                        [ HA.href "#"
-                        ]
-                        [ Html.text " -- All test cases --"
-                        ]
-                    )
-            )
-        , Html.hr [ HA.class "ams-hr" ] []
+        , testCaseSelectBox toSelf model
         , Html.div
             []
             ( model.displayCase
@@ -878,6 +935,96 @@ view config toSelf model renderPID =
             )
         ]
 
+
+pageHeader : (MsgIn -> msg) -> DevModel msgIn -> ColorConfig -> Html msg
+pageHeader toSelf model color =
+    let
+        ( currentPath, queryParams ) =
+            model.currentUrl
+                |> Maybe.map parseUrl
+                |> Maybe.withDefault ( [], Dict.empty )
+
+        colorHref key val =
+            buildHref
+                currentPath
+                (Dict.insert key val queryParams)
+    in
+    Html.div
+        [ HA.class "ams-page-header"
+        ]
+        [ Html.h1
+            [ HA.class "ams-pagetitle"
+            ]
+            [ Html.text model.title ]
+        , colorInput
+            "body-bg"
+            "Body Bg"
+            color.bgColor
+            (colorHref "bgColor"
+                >> NavigateTo
+                >> toSelf
+            )
+        , colorInput
+            "body-bg"
+            "Test case Bg"
+            color.testCaseBgColor
+            (colorHref "testCaseBgColor"
+                >> NavigateTo
+                >> toSelf
+            )
+        , colorInput
+            "body-bg"
+            "Component Bg"
+            color.componentBgColor
+            (colorHref "componentBgColor"
+                >> NavigateTo
+                >> toSelf
+            )
+        ]
+
+
+testCaseSelectBox : (MsgIn -> msg) -> DevModel msgIn -> Html msg
+testCaseSelectBox toSelf model =
+    let
+        testCases =
+            model.cases
+                |> Dict.toList
+
+        ( currentPath, queryParams ) =
+            model.currentUrl
+                |> Maybe.map parseUrl
+                |> Maybe.withDefault ( [], Dict.empty )
+    in
+    Html.div
+        [ HA.class "ams-select-testcase"
+        ]
+        [ Html.select
+            [ Events.onInput (toSelf << NavigateTo)
+            ]
+            (testCases
+                |> List.map
+                    (\( idx, testCase ) ->
+                        Html.option
+                            [ HA.value <| buildHref [ "testcase", String.fromInt idx ] queryParams
+                            , if model.displayCase == Just idx then
+                                HA.selected True
+                              else
+                                HA.selected False
+                            ]
+                            [ Html.text testCase.title
+                            ]
+                    )
+                |> (::)
+                    ( Html.option
+                        [ HA.value <| buildHref [] queryParams
+                        ]
+                        [ Html.text "-- Show all test cases --"
+                        ]
+                    )
+            )
+        ]
+
+
 colorInput : String -> String -> String -> (String -> msg) -> Html msg
 colorInput htmlID label color toMsg =
     Html.div
@@ -886,7 +1033,7 @@ colorInput htmlID label color toMsg =
         [ Html.input
             [ HA.type_ "color"
             , Events.onInput toMsg
-            , HA.value color
+            -- , HA.value color
             , HA.id htmlID
             , HA.class "ams-colorinput__input"
             ]
@@ -1040,6 +1187,16 @@ css =
 
     .ams-color-settings {
         flex: 0 0 auto;
+    }
+
+    .ams-select-testcase {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .ams-select-testcase select {
     }
 
     .ams-heading {
