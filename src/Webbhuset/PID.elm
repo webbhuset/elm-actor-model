@@ -45,5 +45,6 @@ null =
         { isSingleton = False
         , prefix = "null"
         , key = 0
+        , spawnedBy = 0
         }
 

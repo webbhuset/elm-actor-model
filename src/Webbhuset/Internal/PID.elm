@@ -8,5 +8,6 @@ type PID
 type alias Meta =
     { isSingleton : Bool
     , prefix : String
+    , spawnedBy : Int
     , key : Int
     }

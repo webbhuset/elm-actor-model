@@ -85,6 +85,7 @@ Don't worry about these for now.
 import Browser
 import Browser.Navigation as Nav
 import Dict exposing (Dict)
+import Set exposing (Set)
 import Html exposing (Html)
 import List.Extra as List
 import Random
@@ -119,6 +120,7 @@ type Model name appModel =
 
 type alias ModelRecord name appModel =
     { instances : Dict Int ( PID, appModel )
+    , children : Dict Int (Set Int)
     , lastPID : Int
     , prefix : String
     , singleton : List ( name, PID )
@@ -210,7 +212,10 @@ batch list =
     Ctrl (Batch list)
 
 
-{-| Send a message to a Process
+{-| Send a message to a Process.
+
+If the target process does not exists the sender component will
+receive the `Gone` system event. (`onSystem`).
 
 -}
 sendToPID : PID -> SysMsg name appMsg -> SysMsg name appMsg
@@ -258,7 +263,9 @@ spawnSingleton name =
     Ctrl (SpawnSingleton name)
 
 
-{-| Kill a process
+{-| Kill a process.
+
+Singleton processes can not be killed. Attempts to do so will be ignored.
 
 -}
 kill : PID -> SysMsg name appMsg
@@ -384,6 +391,7 @@ applicationView impl ((Model modelRecord) as model) =
 initElement : ElementImpl flags name appModel output appMsg -> flags -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initElement impl flags =
     ( { instances = Dict.empty
+      , children = Dict.empty
       , lastPID = 100
       , prefix = ""
       , singleton = []
@@ -405,6 +413,7 @@ initApplication :
     -> ( Model name appModel, Cmd (SysMsg name appMsg) )
 initApplication impl flags url key =
     ( { instances = Dict.empty
+      , children = Dict.empty
       , lastPID = 100
       , prefix = ""
       , singleton = []
@@ -568,7 +577,7 @@ update impl context msg ((Model modelRecord) as model) =
                 Spawn name replyMsg ->
                     let
                         ( m2, pid ) =
-                            newPID False modelRecord
+                            newPID context False modelRecord
 
                         ( m3, newMsg ) =
                             spawn_ impl name pid m2
@@ -580,6 +589,12 @@ update impl context msg ((Model modelRecord) as model) =
                     if pidMeta.isSingleton then
                         ( model, Cmd.none )
                     else
+                        let
+                            children =
+                                Dict.get pidMeta.spawnedBy modelRecord.children
+                                    |> Maybe.map Set.toList
+                                    |> Maybe.withDefault []
+                        in
                         case Dict.get pidMeta.key modelRecord.instances of
                             Just ( _, appModel ) ->
                                 let
@@ -589,7 +604,10 @@ update impl context msg ((Model modelRecord) as model) =
                                     componentLastWords =
                                         applied.onSystem (SystemEvent.Kill) pid
                                 in
-                                { modelRecord | instances = Dict.remove pidMeta.key modelRecord.instances }
+                                { modelRecord
+                                    | instances = Dict.remove pidMeta.key modelRecord.instances
+                                    , children = Dict.remove pidMeta.key modelRecord.children
+                                }
                                     |> Model
                                     |> update impl context componentLastWords
 
@@ -599,7 +617,7 @@ update impl context msg ((Model modelRecord) as model) =
                 SpawnSingleton name ->
                     let
                         ( m2, pid ) =
-                            newPID True modelRecord
+                            newPID context True modelRecord
 
                         ( m3, newMsg ) =
                             appendSingleton name pid m2
@@ -629,14 +647,37 @@ spawn_ impl name pid model =
         |> Tuple.mapFirst (updateInstanceIn model pid)
 
 
-newPID : Bool -> ModelRecord name appModel -> ( ModelRecord name appModel, PID )
-newPID isSingleton model =
+newPID : Maybe PID -> Bool -> ModelRecord name appModel -> ( ModelRecord name appModel, PID )
+newPID context isSingleton model =
+    let
+        parent =
+            Maybe.map (\(PID { key }) -> key) context
+                |> Maybe.withDefault 0
+    in
     { key = model.lastPID
     , prefix = model.prefix
     , isSingleton = isSingleton
+    , spawnedBy = parent
     }
         |> PID
-        |> Tuple.pair { model | lastPID = 1 + model.lastPID }
+        |> Tuple.pair
+            { model
+                | lastPID = 1 + model.lastPID
+                , children =
+                    Dict.update
+                        parent
+                        (\mbSet ->
+                            case mbSet of
+                                Just set ->
+                                    Set.insert model.lastPID set
+                                        |> Just
+
+                                Nothing ->
+                                    Set.singleton model.lastPID
+                                        |> Just
+                        )
+                        model.children
+            }
 
 
 getProcess : PID -> ModelRecord name appModel -> Maybe appModel
