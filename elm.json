@@ -9,6 +9,7 @@
             "Webbhuset.Component",
             "Webbhuset.Component.Sandbox",
             "Webbhuset.Component.ElmUI",
+            "Webbhuset.Component.SystemEvent",
             "Webbhuset.PID",
             "Webbhuset.PID.Set"
         ],
