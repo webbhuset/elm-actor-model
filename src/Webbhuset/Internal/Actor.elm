@@ -2,7 +2,7 @@ module Webbhuset.Internal.Actor exposing (..)
 
 import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID exposing (PID)
-import Webbhuset.Component.SystemEvent exposing (SystemEvent)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 type alias Args name compModel appModel msgIn msgOut appMsg =
@@ -18,19 +18,18 @@ type alias SysMsg name appMsg =
 
 
 wrapSystem : (msgIn -> appMsg)
-    -> (SystemEvent -> Maybe msgIn)
+    -> (SystemEvent -> SystemEvent.Handling msgIn)
     -> SystemEvent
     -> PID
-    -> SysMsg name appMsg
+    -> SystemEvent.Handling (SysMsg name appMsg)
 wrapSystem toSelf onSystem event pid =
     onSystem event
-        |> Maybe.map
+        |> SystemEvent.mapHandling
             (toSelf
                 >> Msg.AppMsg
                 >> Msg.SendToPID pid
                 >> Msg.Ctrl
             )
-        |> Maybe.withDefault Msg.None
 
 
 wrapSub :

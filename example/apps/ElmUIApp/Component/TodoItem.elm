@@ -34,7 +34,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , onSystem = always Nothing
+    , onSystem = always SystemEvent.default
     , subs = subs
     }
 

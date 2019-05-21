@@ -77,18 +77,15 @@ init config pid =
     )
 
 
-onSystem : SystemEvent -> Maybe MsgIn
+onSystem : SystemEvent -> SystemEvent.Handling MsgIn
 onSystem event =
     case event of
         SystemEvent.Kill ->
-            let
-                _ = Debug.log "kill" event
-            in
-            Nothing
+            SystemEvent.default
 
-        SystemEvent.Gone pid ->
+        SystemEvent.PIDNotFound pid ->
             UnSub pid
-                |> Just
+                |> SystemEvent.iWillHandleIt
 
 
 subs : Model -> Sub MsgIn

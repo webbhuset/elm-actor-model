@@ -9,8 +9,9 @@ module Webbhuset.Component.LoremIpsum exposing
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as Events
-import Webbhuset.Component as Component exposing (PID)
 import Random
+import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 
@@ -40,7 +41,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , onSystem = always Nothing
+    , onSystem = always SystemEvent.default
     , subs = subs
     }
 

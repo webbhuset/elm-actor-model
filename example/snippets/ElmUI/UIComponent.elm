@@ -48,9 +48,9 @@ init pid =
     )
 
 
-onSystem : SystemEvent -> Maybe MsgIn
+onSystem : SystemEvent -> SystemEvent.Handling MsgIn
 onSystem event =
-    Nothing
+    SystemEvent.default
 
 
 subs : Model -> Sub MsgIn

@@ -93,6 +93,7 @@ import Url exposing (Url)
 import Webbhuset.Internal.PID as PID exposing (PID(..))
 import Webbhuset.Internal.Msg as Msg exposing (Msg(..), Control(..))
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
+import Webbhuset.Internal.SystemEvent as Handling
 
 
 {-| A PID is an identifier for a Process.
@@ -136,7 +137,7 @@ type alias Actor compModel appModel output msg =
     { init : PID -> ( appModel, msg )
     , update : compModel -> msg -> PID -> ( appModel, msg )
     , view : compModel -> PID -> (PID -> Maybe output) -> output
-    , onSystem : SystemEvent -> PID -> msg
+    , onSystem : SystemEvent -> PID -> SystemEvent.Handling msg
     , subs : compModel -> PID -> Sub msg
     }
 
@@ -149,7 +150,7 @@ type AppliedActor appModel output msg =
         { init : PID -> ( appModel, msg )
         , update : msg -> PID -> ( appModel, msg )
         , view : PID -> (PID -> Maybe output) -> output
-        , onSystem : SystemEvent -> PID -> msg
+        , onSystem : SystemEvent -> PID -> SystemEvent.Handling msg
         , subs : PID -> Sub msg
         }
 
@@ -215,7 +216,7 @@ batch list =
 {-| Send a message to a Process.
 
 If the target process does not exists the sender component will
-receive the `Gone` system event. (`onSystem`).
+receive the `PIDNotFound` system event. (`onSystem`).
 
 -}
 sendToPID : PID -> SysMsg name appMsg -> SysMsg name appMsg
@@ -554,10 +555,18 @@ update impl context msg ((Model modelRecord) as model) =
                                                     (AppliedActor applied) =
                                                         impl.apply senderModel
 
-                                                    senderMsg =
-                                                        applied.onSystem (SystemEvent.Gone pid) senderPID
+                                                    whatToDo =
+                                                        applied.onSystem (SystemEvent.PIDNotFound pid) senderPID
                                                 in
-                                                update impl context senderMsg model
+                                                case whatToDo of
+                                                    Handling.Default ->
+                                                        ( model, Cmd.none )
+
+                                                    Handling.DoNothing ->
+                                                        ( model, Cmd.none )
+
+                                                    Handling.HandleWith senderMsg ->
+                                                        update impl context senderMsg model
 
                                             Nothing ->
                                                 ( model, Cmd.none ) -- Should never happen.
@@ -585,34 +594,8 @@ update impl context msg ((Model modelRecord) as model) =
                     update impl context newMsg (Model m3)
                         |> cmdAndThen (update impl context (replyMsg pid))
 
-                Kill ((PID pidMeta) as pid) ->
-                    if pidMeta.isSingleton then
-                        ( model, Cmd.none )
-                    else
-                        let
-                            children =
-                                Dict.get pidMeta.spawnedBy modelRecord.children
-                                    |> Maybe.map Set.toList
-                                    |> Maybe.withDefault []
-                        in
-                        case Dict.get pidMeta.key modelRecord.instances of
-                            Just ( _, appModel ) ->
-                                let
-                                    (AppliedActor applied) =
-                                        impl.apply appModel
-
-                                    componentLastWords =
-                                        applied.onSystem (SystemEvent.Kill) pid
-                                in
-                                { modelRecord
-                                    | instances = Dict.remove pidMeta.key modelRecord.instances
-                                    , children = Dict.remove pidMeta.key modelRecord.children
-                                }
-                                    |> Model
-                                    |> update impl context componentLastWords
-
-                            Nothing ->
-                                ( model, Cmd.none )
+                Kill pid ->
+                    handleKill impl context pid model
 
                 SpawnSingleton name ->
                     let
@@ -639,6 +622,69 @@ update impl context msg ((Model modelRecord) as model) =
                         Nothing ->
                             update impl context (spawnSingleton name) model
                                 |> cmdAndThen (update impl context msg)
+
+
+handleKill : Impl name appMod output appMsg a
+    -> Maybe PID
+    -> PID
+    -> Model name appMod
+    -> ( Model name appMod, Cmd (SysMsg name appMsg) )
+handleKill impl context ((PID pidMeta) as pid) ((Model modelRecord) as model) =
+    if pidMeta.isSingleton then
+        ( model, Cmd.none )
+    else
+        let
+            children =
+                Dict.get pidMeta.spawnedBy modelRecord.children
+                    |> Maybe.map
+                        (Set.toList
+                            >> List.filterMap
+                                (\key ->
+                                    Dict.get key modelRecord.instances
+                                        |> Maybe.map Tuple.first
+                                )
+                        )
+                    |> Maybe.withDefault []
+        in
+        case Dict.get pidMeta.key modelRecord.instances of
+            Just ( _, appModel ) ->
+                let
+                    (AppliedActor applied) =
+                        impl.apply appModel
+
+                    whatToDo =
+                        applied.onSystem (SystemEvent.Kill) pid
+                in
+                case whatToDo of
+                    Handling.Default ->
+                        children
+                            |> List.foldl
+                                (\childPID previous ->
+                                    cmdAndThen (handleKill impl context childPID) previous
+                                )
+                                ( model, Cmd.none )
+                            |> Tuple.mapFirst
+                                (\(Model modelRecord_) ->
+                                    { modelRecord_
+                                        | instances = Dict.remove pidMeta.key modelRecord_.instances
+                                        , children = Dict.remove pidMeta.key modelRecord_.children
+                                    }
+                                    |> Model
+                                )
+
+                    Handling.DoNothing ->
+                        ( model, Cmd.none )
+
+                    Handling.HandleWith componentLastWords ->
+                        { modelRecord
+                            | instances = Dict.remove pidMeta.key modelRecord.instances
+                            , children = Dict.remove pidMeta.key modelRecord.children
+                        }
+                            |> Model
+                            |> update impl context componentLastWords
+
+            Nothing ->
+                ( model, Cmd.none )
 
 
 spawn_ : Impl name appModel output appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )

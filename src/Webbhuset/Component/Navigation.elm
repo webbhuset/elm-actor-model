@@ -14,6 +14,7 @@ module Webbhuset.Component.Navigation exposing
 -}
 
 import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 import Browser.Navigation as Nav exposing (Key)
 import Url exposing (Url)
 
@@ -57,7 +58,7 @@ component : Component.Service Model MsgIn MsgOut
 component =
     { init = init
     , update = update
-    , onSystem = always Nothing
+    , onSystem = always SystemEvent.default
     , subs = subs
     }
 
@@ -70,11 +71,6 @@ init pid =
     , []
     , Cmd.none
     )
-
-
-kill : Model -> List MsgOut
-kill model =
-    []
 
 
 subs : Model -> Sub MsgIn

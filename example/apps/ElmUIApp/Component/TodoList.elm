@@ -6,6 +6,7 @@ module ElmUIApp.Component.TodoList exposing
     )
 
 import Webbhuset.ElmUI.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 import Element exposing (Element)
 
 
@@ -33,7 +34,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , onSystem = always Nothing
+    , onSystem = always SystemEvent.default
     , subs = subs
     }
 

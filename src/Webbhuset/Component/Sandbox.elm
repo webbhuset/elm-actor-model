@@ -87,6 +87,7 @@ import Element exposing (Element)
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 import Webbhuset.ElmUI.Component as ElmUI_Component
 import Webbhuset.ElmUI.Actor as ElmUI_Actor
 import Webbhuset.Component.Navigation as Navigation
@@ -604,7 +605,7 @@ sandboxComponent config =
     { init = init config
     , update = update config
     , view = view config
-    , onSystem = always Nothing
+    , onSystem = always SystemEvent.default
     , subs = always Sub.none
     }
 
