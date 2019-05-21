@@ -12,10 +12,6 @@
             "Webbhuset.PID",
             "Webbhuset.PID.Set"
         ],
-        "Elm UI": [
-            "Webbhuset.ElmUI.Component",
-            "Webbhuset.ElmUI.Actor"
-        ],
         "Actor System": [
             "Webbhuset.Actor",
             "Webbhuset.ActorSystem"
@@ -29,7 +25,6 @@
         "elm/random": "1.0.0 <= v < 2.0.0",
         "elm/url": "1.0.0 <= v < 2.0.0",
         "elm-community/list-extra": "8.2.0 <= v < 9.0.0",
-        "mdgriffith/elm-ui": "1.1.0 <= v < 2.0.0",
         "elm-explorations/markdown": "1.0.0 <= v < 2.0.0"
     },
     "test-dependencies": {}
