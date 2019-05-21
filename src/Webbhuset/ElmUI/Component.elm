@@ -1,4 +1,4 @@
-module Webbhuset.Component.ElmUI exposing
+module Webbhuset.ElmUI.Component exposing
     ( Layout
     , Service
     , UI

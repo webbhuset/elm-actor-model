@@ -87,8 +87,8 @@ import Element exposing (Element)
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
-import Webbhuset.Component.ElmUI as ElmUI_Component
-import Webbhuset.Actor.ElmUI as ElmUI_Actor
+import Webbhuset.ElmUI.Component as ElmUI_Component
+import Webbhuset.ElmUI.Actor as ElmUI_Actor
 import Webbhuset.Component.Navigation as Navigation
 import Webbhuset.Component.LoremIpsum as LoremIpsum
 import Webbhuset.Internal.PID exposing (PID(..))

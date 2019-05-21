@@ -1,4 +1,4 @@
-module Webbhuset.Actor.ElmUI exposing
+module Webbhuset.ElmUI.Actor exposing
     ( Actor
     , PID
     , fromLayout
@@ -29,7 +29,7 @@ Check Webbhuset.Actor for more info.
 import Browser
 import Element exposing (Element)
 import Element.Lazy as Element
-import Webbhuset.Component.ElmUI as Component
+import Webbhuset.ElmUI.Component as Component
 import Webbhuset.Internal.Msg as Msg
 import Webbhuset.Internal.PID as PID
 import Webbhuset.ActorSystem as System
