@@ -128,8 +128,8 @@ type alias Service model msgIn msgOut =
 - **init**: Is called everytime the component is instantiated.
 - **update**: When the component recieves a message.
 - **view**: Is called when the app needs to re-render.
-- **kill**: Is called when the component is no longer needed.
-- **subs**: Normal Elm Subscriptions.
+- **onSystem**: Called when a system event happens. See Webbhuset.Component.SystemEvent.
+- **subs**: Normal Elm Subscriptions, called after update.
 
 -}
 type alias UI model msgIn msgOut =

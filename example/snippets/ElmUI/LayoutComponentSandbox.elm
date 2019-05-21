@@ -1,7 +1,6 @@
 module ElmUI.LayoutComponentSandbox exposing (..)
 
 import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
-import Webbhuset.Component.ElmUI as Component
 import Webbhuset.PID as PID
 import ElmUI.LayoutComponent as ComponentAlias
 import Element exposing (Element)

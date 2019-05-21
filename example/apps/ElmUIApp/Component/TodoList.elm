@@ -5,7 +5,7 @@ module ElmUIApp.Component.TodoList exposing
     , component
     )
 
-import Webbhuset.Component.ElmUI as Component exposing (PID)
+import Webbhuset.ElmUI.Component as Component exposing (PID)
 import Element exposing (Element)
 
 

@@ -1,7 +1,7 @@
 module ElmUIApp.Actor.TodoItem exposing (..)
 
 import Webbhuset.ActorSystem as System
-import Webbhuset.Actor.ElmUI as Actor exposing (Actor)
+import Webbhuset.ElmUI.Actor as Actor exposing (Actor)
 import Webbhuset.PID exposing (PID)
 import ElmUIApp.Msg as Msg exposing (Msg)
 import ElmUIApp.Component.TodoItem as TodoItem

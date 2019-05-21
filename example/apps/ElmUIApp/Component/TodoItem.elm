@@ -6,7 +6,7 @@ module ElmUIApp.Component.TodoItem exposing
     )
 
 import Element exposing (Element)
-import Webbhuset.Component.ElmUI as Component exposing (PID)
+import Webbhuset.ElmUI.Component as Component exposing (PID)
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
