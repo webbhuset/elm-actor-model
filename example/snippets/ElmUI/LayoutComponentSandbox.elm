@@ -1,6 +1,6 @@
 module ElmUI.LayoutComponentSandbox exposing (..)
 
-import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
+import Webbhuset.ElmUI.Sandbox as Sandbox exposing (SandboxProgram)
 import Webbhuset.PID as PID
 import ElmUI.LayoutComponent as ComponentAlias
 import Element exposing (Element)
@@ -9,7 +9,7 @@ import Html exposing (Html)
 
 main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
 main =
-    Sandbox.elmUILayout
+    Sandbox.layout
         { title = "Elm UI Layout Component"
         , component = ComponentAlias.component
         , cases =

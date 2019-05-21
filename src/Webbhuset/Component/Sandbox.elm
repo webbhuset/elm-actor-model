@@ -1,9 +1,10 @@
 module Webbhuset.Component.Sandbox exposing
     ( SandboxProgram
     , TestCase
+    , Action
+    , Msg
     , ui
     , layout
-    , elmUILayout
     , service
     , sendMsg
     , delay
@@ -47,7 +48,7 @@ A sandbox module example for `YourComponent`:
             }
 
 
-@docs ui, layout, service, elmUILayout
+@docs ui, layout, service
 
 # Create a Test Case
 
@@ -75,7 +76,9 @@ You can also the component's map out messages to actions to simulate the outside
 
 ## Actions
 
-@docs sendMsg, spawnChild, delay
+@docs Action, sendMsg, spawnChild, delay
+
+@docs Msg
 
 -}
 
@@ -83,13 +86,10 @@ import Dict exposing (Dict)
 import Html exposing (Html)
 import Html.Attributes as HA
 import Html.Events as Events
-import Element exposing (Element)
 import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.ActorSystem as System
 import Webbhuset.Component as Component
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
-import Webbhuset.ElmUI.Component as ElmUI_Component
-import Webbhuset.ElmUI.Actor as ElmUI_Actor
 import Webbhuset.Component.Navigation as Navigation
 import Webbhuset.Component.LoremIpsum as LoremIpsum
 import Webbhuset.Internal.PID exposing (PID(..))
@@ -127,6 +127,9 @@ type alias TestCase msgIn msgOut =
     }
 
 
+{-| An action to perform on your sandboxed component.
+
+-}
 type Action msgIn
     = SendMsg msgIn
     | SpawnChild String (PID -> msgIn)
@@ -234,40 +237,6 @@ layout ({ component } as args) =
             , stringifyMsgOut = args.stringifyMsgOut
             }
 
-
-{-| Sandbox a Elm UI Layout Component
-
--}
-elmUILayout :
-    { title : String
-    , component : ElmUI_Component.Layout model msgIn msgOut (Msg msgIn msgOut)
-    , cases : List (TestCase msgIn msgOut)
-    , stringifyMsgIn : msgIn -> String
-    , stringifyMsgOut : msgOut -> String
-    , wrapView : (msgIn -> Msg msgIn msgOut) -> Element (Msg msgIn msgOut) -> Html (Msg msgIn msgOut)
-    }
-    -> SandboxProgram model msgIn msgOut
-elmUILayout ({ component } as args) =
-    Actor.fromLayout
-        { wrapModel = P_Component
-        , wrapMsg = ComponentMsg
-        , mapIn = testedMapIn
-        , mapOut = testedMapOut args.stringifyMsgOut
-        }
-        { init = component.init
-        , update = component.update
-        , onSystem = component.onSystem
-        , subs = component.subs
-        , view = \toSelf model renderPID ->
-            (component.view toSelf model (Element.paragraph [] << List.singleton << Element.html << renderPID))
-                |> args.wrapView toSelf
-        }
-        |> toApplication
-            { title = args.title
-            , cases = args.cases
-            , stringifyMsgIn = args.stringifyMsgIn
-            , stringifyMsgOut = args.stringifyMsgOut
-            }
 
 {-| Sandbox a Service Component
 
@@ -390,7 +359,8 @@ type Process model
     | P_Nav Navigation.Model
     | P_LoremIpsum LoremIpsum.Model
 
-
+{-| Sadbox Msg
+-}
 type alias Msg msgIn msgOut =
     System.SysMsg ActorName (AppMsg msgIn msgOut)
 

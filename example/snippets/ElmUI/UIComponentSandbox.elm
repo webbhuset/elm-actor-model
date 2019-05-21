@@ -1,6 +1,6 @@
 module ElmUI.UIComponentSandbox exposing (..)
 
-import Webbhuset.Component.Sandbox as Sandbox exposing (SandboxProgram)
+import Webbhuset.ElmUI.Sandbox as Sandbox exposing (SandboxProgram)
 import Webbhuset.PID as PID
 import ElmUI.UIComponent as ComponentAlias
 import Html exposing (Html)
