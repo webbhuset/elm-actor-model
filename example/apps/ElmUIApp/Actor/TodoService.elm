@@ -5,6 +5,7 @@ import Webbhuset.Actor.ElmUI as Actor exposing (Actor)
 import Webbhuset.PID as PID exposing (PID)
 import ElmUIApp.Msg as Msg exposing (Msg)
 import ElmUIApp.Component.TodoService as TodoService
+import ElmUIApp.ActorName as ActorName
 
 
 type alias Model =
@@ -35,6 +36,4 @@ mapOut : PID -> TodoService.MsgOut -> Msg
 mapOut self msgOut =
     case msgOut of
         TodoService.Init ->
-            Msg.Dummy
-                |> System.toAppMsg
-                |> System.sendToPID PID.null
+            System.none

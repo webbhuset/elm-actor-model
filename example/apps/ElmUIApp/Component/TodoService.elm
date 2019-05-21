@@ -16,6 +16,7 @@ module ElmUIApp.Component.TodoService exposing
 -}
 
 import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 {-| Component Config
@@ -28,6 +29,7 @@ type alias Config =
 -}
 type MsgIn
     = NoIn
+    | UnSub PID
 
 
 {-| Message Out
@@ -59,9 +61,8 @@ component : Config -> Component.Service Model MsgIn MsgOut
 component config =
     { init = init config
     , update = update config
-    , kill = kill
+    , onSystem = onSystem
     , subs = subs
-    , onSystem = always NoIn
     }
 
 
@@ -76,9 +77,18 @@ init config pid =
     )
 
 
-kill : Model -> List MsgOut
-kill model =
-    []
+onSystem : SystemEvent -> Maybe MsgIn
+onSystem event =
+    case event of
+        SystemEvent.Kill ->
+            let
+                _ = Debug.log "kill" event
+            in
+            Nothing
+
+        SystemEvent.Gone pid ->
+            UnSub pid
+                |> Just
 
 
 subs : Model -> Sub MsgIn
@@ -108,6 +118,13 @@ updateInit config msgIn model =
             , Cmd.none
             )
 
+        UnSub pid ->
+            ( model
+                |> InitState
+            , []
+            , Cmd.none
+            )
+
 
 updateRunning : Config -> MsgIn -> RunningModel -> ( RunningModel, List MsgOut, Cmd MsgIn )
 updateRunning config msgIn model =
@@ -118,4 +135,8 @@ updateRunning config msgIn model =
             , Cmd.none
             )
 
-
+        UnSub pid ->
+            ( model
+            , []
+            , Cmd.none
+            )

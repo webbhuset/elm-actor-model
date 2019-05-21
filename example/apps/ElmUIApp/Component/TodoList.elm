@@ -33,7 +33,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , kill = kill
+    , onSystem = always Nothing
     , subs = subs
     }
 
