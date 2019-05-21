@@ -1552,8 +1552,6 @@ css =
     }
 
     .ams-card__cell {
-        border-radius: 2px;
-        background: {{testCaseBg}};
         position: relative;
     }
 
