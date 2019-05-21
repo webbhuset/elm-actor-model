@@ -6,7 +6,11 @@ SNIPPETS = $(patsubst example/%.elm,%,$(call rwildcard,example/snippets/,*Sandbo
 all:
 	elm make
 
-snippets: $(SNIPPETS)
+snippets: $(SNIPPETS) apps
+
+apps:
+	cd example; elm make apps/ElmUIApp/Main.elm --output /dev/null
+
 
 
 $(SNIPPETS):
