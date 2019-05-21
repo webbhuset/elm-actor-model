@@ -48,7 +48,7 @@ Check Webbhuset.Component for more info.
 import Element exposing (Element)
 import Process
 import Task
-import Webbhuset.Internal.PID as PID
+import Webbhuset.PID as PID
 import Webbhuset.Component as Component
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 

@@ -26,17 +26,15 @@ Check Webbhuset.Actor for more info.
 @docs Actor
 
 -}
-import Browser
 import Element exposing (Element)
 import Element.Lazy as Element
 import Webbhuset.ElmUI.Component as Component
-import Webbhuset.Internal.Msg as Msg
-import Webbhuset.Internal.PID as PID
+import Webbhuset.PID as PID
 import Webbhuset.ActorSystem as System
-import Webbhuset.Internal.Actor exposing (Args, wrapSystem, wrapSub, wrapInit, wrapUpdate)
+import Webbhuset.Actor exposing (Args, wrapSystem, wrapSub, wrapInit, wrapUpdate, sendTo)
 
 type alias SysMsg name appMsg =
-    Msg.Msg name appMsg
+    System.SysMsg name appMsg
 
 {-| A PID is an identifier for a Process.
 
@@ -85,11 +83,7 @@ layoutView : Args name compModel appModel msgIn msgOut appMsg
     -> Element (SysMsg name appMsg)
 layoutView args view model pid renderPID =
     view
-        (args.wrapMsg
-            >> Msg.AppMsg
-            >> Msg.SendToPID pid
-            >> Msg.Ctrl
-        )
+        (sendTo args.wrapMsg pid)
         model
         (renderPID >> Maybe.withDefault (Element.none))
 
@@ -129,12 +123,7 @@ uiView args view model pid _ =
 uiView_ : (compModel -> Element msgIn) -> compModel -> (msgIn -> appMsg) -> PID -> Element (SysMsg actor appMsg)
 uiView_ view model toSelf pid =
     view model
-        |> Element.map
-            (toSelf
-                >> Msg.AppMsg
-                >> Msg.SendToPID pid
-                >> Msg.Ctrl
-            )
+        |> Element.map (sendTo toSelf pid)
 
 
 {-| Create an actor from a Service Component

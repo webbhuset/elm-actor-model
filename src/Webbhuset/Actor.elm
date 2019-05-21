@@ -1,9 +1,15 @@
 module Webbhuset.Actor exposing
     ( Actor
     , PID
+    , Args
     , fromLayout
     , fromService
     , fromUI
+    , wrapSystem
+    , wrapSub
+    , wrapInit
+    , wrapUpdate
+    , sendTo
     )
 
 {-|
@@ -88,22 +94,30 @@ mapFormOut self formMsg =
 
 @docs fromUI, fromService, fromLayout
 
-## Bootstrap
+## For package authors.
+
+You probably don't need this when you are using the actor model.
+These are useful if you need to create support for a different output type.
 
 @docs Actor
+    , Args
+    , wrapSystem
+    , wrapSub
+    , wrapInit
+    , wrapUpdate
+    , sendTo
 
 -}
-import Browser
 import Html exposing (Html)
 import Html.Lazy as Html
 import Webbhuset.Component as Component
-import Webbhuset.Internal.Msg as Msg
-import Webbhuset.Internal.PID as PID
+import Webbhuset.PID as PID
 import Webbhuset.ActorSystem as System
-import Webbhuset.Internal.Actor exposing (Args, wrapSystem, wrapSub, wrapInit, wrapUpdate)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
+import Webbhuset.Internal.Msg as Msg
 
 type alias SysMsg name appMsg =
-    Msg.Msg name appMsg
+    System.SysMsg name appMsg
 
 {-| A PID is an identifier for a Process.
 
@@ -120,12 +134,17 @@ type alias Actor compModel appModel msg =
     System.Actor compModel appModel (Html msg) msg
 
 
+{-| Args
+
+-}
 type alias Args name compModel appModel msgIn msgOut appMsg =
     { wrapModel : compModel -> appModel
     , wrapMsg : msgIn -> appMsg
     , mapIn : appMsg -> Maybe msgIn
     , mapOut : PID -> msgOut -> SysMsg name appMsg
     }
+
+
 
 {-| Create an actor from a Layout Component
 
@@ -159,11 +178,7 @@ layoutView : Args name compModel appModel msgIn msgOut appMsg
     -> Html (SysMsg name appMsg)
 layoutView args view model pid renderPID =
     view
-        (args.wrapMsg
-            >> Msg.AppMsg
-            >> Msg.SendToPID pid
-            >> Msg.Ctrl
-        )
+        (sendTo args.wrapMsg pid)
         model
         (renderPID >> Maybe.withDefault (Html.text ""))
 
@@ -203,11 +218,7 @@ uiView_ : (compModel -> Html msgIn) -> compModel -> (msgIn -> appMsg) -> PID -> 
 uiView_ view model toSelf pid =
     view model
         |> Html.map
-            (toSelf
-                >> Msg.AppMsg
-                >> Msg.SendToPID pid
-                >> Msg.Ctrl
-            )
+            (sendTo toSelf pid)
 
 
 {-| Create an actor from a Service Component
@@ -235,3 +246,106 @@ serviceView _ _ _ =
     Html.text ""
 
 
+{-| Convert a component `onSystem` field to an actor `onSystem` field
+-}
+wrapSystem : (msgIn -> appMsg)
+    -> (SystemEvent -> SystemEvent.Handling msgIn)
+    -> SystemEvent
+    -> PID
+    -> SystemEvent.Handling (SysMsg name appMsg)
+wrapSystem toSelf onSystem event pid =
+    onSystem event
+        |> SystemEvent.mapHandling (sendTo toSelf pid)
+
+
+{-| Convert a component `subs` field to an actor `subs` field
+-}
+wrapSub :
+    (msgIn -> appMsg)
+    -> (compModel -> Sub msgIn)
+    -> compModel
+    -> PID
+    -> Sub (SysMsg name appMsg)
+wrapSub toSelf subs model pid =
+    let
+        sub =
+            subs model
+    in
+    if sub == Sub.none then
+        Sub.none
+
+    else
+        Sub.map
+            (sendTo toSelf pid)
+            sub
+
+
+{-| Convert a component `init` field to an actor `init` field
+-}
+wrapInit : Args name compModel appModel msgIn msgOut appMsg
+    -> (PID -> ( compModel, List msgOut, Cmd msgIn ))
+    -> PID
+    -> ( appModel, SysMsg name appMsg )
+wrapInit args implInit pid =
+    implInit pid
+        |> wrapTriple args pid
+        |> Tuple.mapFirst args.wrapModel
+
+
+wrapTriple : Args name compModel appModel msgIn msgOut appMsg
+    -> PID
+    -> ( compModel, List msgOut, Cmd msgIn )
+    -> ( compModel, SysMsg name appMsg )
+wrapTriple args pid ( model, msgsOut, cmd ) =
+    let
+        msgCmd =
+            if cmd == Cmd.none then
+                Msg.None
+
+            else
+                Cmd.map
+                    (sendTo args.wrapMsg pid)
+                    cmd
+                    |> Msg.Cmd
+                    |> Msg.Ctrl
+
+        msg =
+            List.map (args.mapOut pid) msgsOut
+                |> (::) msgCmd
+                |> Msg.Batch
+                |> Msg.Ctrl
+                |> Msg.Context pid
+    in
+    ( model
+    , msg
+    )
+
+
+{-| Convert a component `update` field to an actor `update` field
+-}
+wrapUpdate : Args name compModel appModel msgIn msgOut msg
+    -> (msgIn -> compModel -> ( compModel, List msgOut, Cmd msgIn ))
+    -> (compModel -> SysMsg name msg -> PID -> ( appModel, SysMsg name msg ))
+wrapUpdate args update model msg pid =
+    case msg of
+        Msg.AppMsg appMsg ->
+            case args.mapIn appMsg of
+                Just msgIn ->
+                    update msgIn model
+                        |> wrapTriple args pid
+                        |> Tuple.mapFirst args.wrapModel
+
+                Nothing ->
+                    ( args.wrapModel model, Msg.UnmappedMsg appMsg )
+
+        _ ->
+            ( args.wrapModel model, Msg.None )
+
+{-| Send to pid.
+-}
+sendTo : (msgIn -> appMsg) -> PID -> msgIn -> SysMsg name appMsg
+sendTo wrapper pid =
+    wrapper
+        >> Msg.AppMsg
+        >> Msg.SendToPID pid
+        >> Msg.Ctrl
