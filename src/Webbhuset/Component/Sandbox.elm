@@ -93,7 +93,6 @@ import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 import Webbhuset.Component.Navigation as Navigation
 import Webbhuset.Component.LoremIpsum as LoremIpsum
 import Webbhuset.Internal.PID exposing (PID(..))
-import Webbhuset.Internal.Component as InternalC
 import Webbhuset.PID as PID
 import Browser.Navigation as Nav
 import Browser
@@ -178,11 +177,11 @@ sendMsg =
 -}
 ui :
     { title : String
-    , component : InternalC.UI model msgIn msgOut output
+    , component : Component.UI model msgIn msgOut
     , cases : List (TestCase msgIn msgOut)
     , stringifyMsgIn : msgIn -> String
     , stringifyMsgOut : msgOut -> String
-    , wrapView : output -> Html msgIn
+    , wrapView : Html msgIn -> Html msgIn
     }
     -> SandboxProgram model msgIn msgOut
 ui ({ component } as args) =
