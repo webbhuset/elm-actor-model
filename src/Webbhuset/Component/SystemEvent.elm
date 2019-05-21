@@ -11,6 +11,8 @@ module Webbhuset.Component.SystemEvent exposing
 
 # System Events
 
+@docs SystemEvent
+
 System events are sent to a component's `onSystem` function.
 
     onSystem : SystemEvent -> SystemEvent.Handling MsgIn
@@ -23,28 +25,34 @@ System events are sent to a component's `onSystem` function.
             Kill ->
                 SystemEvent.default
 
-Mapping a system event to a component in-message you can respond to
-the following:
+This gives you the choice of how to handle them by returning `Handling`.
 
+If you don't care you can just set the handling to default in your component's
+record.
+
+    component =
+        { init = init
+        , onSystem = always SystemEvent.default
+        ...
+        }
 
 ## PIDNotFound
 
 If your component sends a message to a PID that does not exist
-anymore you will receive a `PIDNotFOund` event containing the PID of the
+anymore you will receive a `PIDNotFound` event containing the PID of the
 killed process.
 This lets you clean up any PID's you stored in your model for example.
 
-Default handling for this event is to do nothing.
+**Default handling** for this event is to do nothing.
 
 ## Kill
 
 Kill is received when your component is going to be killed. You
 have the chance to say some last words before dying.
 
-Default handling for Kill is to also kill all the children of
+**Default handling** for Kill is to also kill all the children of
 the process.
 
-@docs SystemEvent
 
 # Handling
 

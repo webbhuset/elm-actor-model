@@ -246,13 +246,21 @@ be sent in a message using the provied message constructor.
 The new process will become a child process of the process that sent the
 spawn message. This relationship is used when a process is killed.
 
+
+Example - `Actor/PageLayout.elm`:
+
     System.spawn
         ActorName.LoginForm
-        (\pid ->
-            PageLayout.SetContent pid
+        (\spawnedPID ->
+            PageLayout.SetContent spawnedPID
+                |> Msg.PageLayout
                 |> System.toAppMsg
-                |> System.sendToSingleton ActorName.PageLayout
+                |> System.sendToPID pageLayoutPID
         )
+
+In this case the `LoginForm` will be a child of `PageLayout`. If `PageLayout`
+is killed the `LoginForm` will also be killed.
+
 -}
 spawn : name -> (PID -> SysMsg name appMsg) -> SysMsg name appMsg
 spawn name replyMsg =
