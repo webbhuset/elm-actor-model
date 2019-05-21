@@ -14,6 +14,7 @@ main =
         , component = ComponentAlias.component
         , cases =
             [ test_init
+            , test_init
             ]
         , stringifyMsgIn = Debug.toString -- Or roll your own if you want prettier messages.
         , stringifyMsgOut = Debug.toString

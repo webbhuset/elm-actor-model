@@ -1,4 +1,4 @@
-module Webbhuset.Component.LoremIpsum exposing
+module Webbhuset.Component.Sandbox.LoremIpsum exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model

@@ -1,4 +1,4 @@
-module Webbhuset.Component.Navigation exposing
+module Webbhuset.Component.Sandbox.Navigation exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
