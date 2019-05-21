@@ -15,7 +15,6 @@ compile-elm:
     - source /etc/profile
   script:
     - rm -rf ./elm-stuff/
-    - make
     - make docs
     - tar -czf ${CI_COMMIT_SHA}.tar.gz docs.json README.md
     - echo "export BUILD_JOB_ID=${CI_JOB_ID}" > variables
