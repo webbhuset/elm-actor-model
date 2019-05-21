@@ -647,7 +647,7 @@ handleKill impl context ((PID pidMeta) as pid) ((Model modelRecord) as model) =
     else
         let
             children =
-                Dict.get pidMeta.spawnedBy modelRecord.children
+                Dict.get pidMeta.key modelRecord.children
                     |> Maybe.map
                         (Set.toList
                             >> List.filterMap
