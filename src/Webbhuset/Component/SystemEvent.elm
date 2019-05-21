@@ -48,7 +48,7 @@ the process.
 
 # Handling
 
-@docs Handling, default, doNothing, iWillHandleIt
+@docs Handling, default, doNothing, iWillHandleIt, mapHandling
 
 -}
 import Webbhuset.Internal.PID exposing (PID)
