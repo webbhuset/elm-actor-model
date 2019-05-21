@@ -8,6 +8,7 @@ module Html.LayoutComponent exposing
 import Html exposing (Html)
 import Html.Attributes as HA
 import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 type MsgIn
@@ -34,7 +35,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , kill = kill
+    , onSystem = onSystem
     , subs = subs
     }
 
@@ -49,9 +50,9 @@ init pid =
     )
 
 
-kill : Model -> List MsgOut
-kill model =
-    []
+onSystem : SystemEvent -> Maybe MsgIn
+onSystem event =
+    Nothing
 
 
 subs : Model -> Sub MsgIn

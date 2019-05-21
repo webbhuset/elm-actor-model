@@ -5,8 +5,9 @@ module ElmUI.UIComponent exposing
     , component
     )
 
-import Webbhuset.Component.ElmUI as Component exposing (PID)
 import Element exposing (Element)
+import Webbhuset.Component.ElmUI as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 
@@ -33,7 +34,7 @@ component =
     { init = init
     , update = update
     , view = view
-    , kill = kill
+    , onSystem = onSystem
     , subs = subs
     }
 
@@ -47,9 +48,9 @@ init pid =
     )
 
 
-kill : Model -> List MsgOut
-kill model =
-    []
+onSystem : SystemEvent -> Maybe MsgIn
+onSystem event =
+    Nothing
 
 
 subs : Model -> Sub MsgIn

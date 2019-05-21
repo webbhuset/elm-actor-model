@@ -16,6 +16,7 @@ module ServiceComponent exposing
 -}
 
 import Webbhuset.Component as Component exposing (PID)
+import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
 
 
 {-| Component Config
@@ -59,7 +60,7 @@ component : Config -> Component.Service Model MsgIn MsgOut
 component config =
     { init = init config
     , update = update config
-    , kill = kill
+    , onSystem = onSystem
     , subs = subs
     }
 
@@ -74,9 +75,9 @@ init config pid =
     )
 
 
-kill : Model -> List MsgOut
-kill model =
-    []
+onSystem : SystemEvent -> Maybe MsgIn
+onSystem event =
+    Nothing
 
 
 subs : Model -> Sub MsgIn
