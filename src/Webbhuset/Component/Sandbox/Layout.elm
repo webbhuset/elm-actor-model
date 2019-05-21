@@ -60,8 +60,10 @@ type alias Model =
     , pids : Dict Int Child
     , messages : Dict String (List Message)
     , displayCase : Maybe Int
+    , cardMode : Maybe Int
     , title : String
     , currentUrl : Maybe Url
+    , viewMode : ViewMode
     }
 
 
@@ -100,8 +102,10 @@ init config pid =
     ( { pid = pid
       , pids = Dict.empty
       , displayCase = Nothing
+      , cardMode = Nothing
       , messages = Dict.empty
       , currentUrl = Nothing
+      , viewMode = Normal
       , title = config.title
       }
     , config.cases
@@ -234,9 +238,25 @@ update config msgIn model =
                     in
                     ( { model
                             | displayCase = idx
+                            , cardMode = Nothing
                             , currentUrl = Just url
                       }
                     , [ SetPageTitle title ]
+                    , Cmd.none
+                    )
+
+                [ "cardmode", n ] ->
+                    let
+                        cols =
+                            String.toInt n
+                                |> Maybe.map (clamp 1 8)
+                    in
+                    ( { model
+                            | displayCase = Nothing
+                            , cardMode = cols
+                            , currentUrl = Just url
+                      }
+                    , [ SetPageTitle model.title ]
                     , Cmd.none
                     )
 
@@ -244,6 +264,7 @@ update config msgIn model =
                     ( { model
                             | displayCase = Nothing
                             , currentUrl = Just url
+                            , cardMode = Nothing
                       }
                     , [ SetPageTitle model.title ]
                     , Cmd.none
@@ -358,6 +379,11 @@ runActions pid actions =
 
 -- VIEW
 
+type ViewMode
+    = Fullscreen PID
+    | CardMode Int
+    | Normal
+
 
 type alias ColorConfig =
     { bgColor : String
@@ -400,29 +426,24 @@ view config toSelf model renderPID =
                 |> Maybe.map parseUrl
                 |> Maybe.withDefault ( [], Dict.empty )
 
-        testCases =
-            config.cases
-                |> Dict.toList
-
         color =
             colorsFromQueryParams queryParams
 
-
-        fullScreenCase =
+        fullScreenMode =
             let
                 resolve maybe fn =
                     maybe
                         |> Maybe.andThen fn
             in
-            resolve (Dict.get "fullscreen" queryParams) <|\_ -> 
+            resolve (Dict.get "fullscreen" queryParams) <|\_ ->
             resolve model.displayCase <| \caseIdx ->
             resolve (Dict.get caseIdx config.cases) <| \testCase ->
             resolve (Dict.get caseIdx model.pids) <| \child ->
-                Just ( caseIdx, testCase, child )
+                Just ( caseIdx, testCase, child.pid )
     in
-    case fullScreenCase of
-        Just ( idx, testCase, child ) ->
-            renderPID child.pid
+    case fullScreenMode of
+        Just ( caseIdx, testCase, pid ) ->
+            renderPID pid
 
         _ ->
             Html.div
@@ -440,38 +461,84 @@ view config toSelf model renderPID =
                 , pageHeader toSelf model color
                 , Html.hr [ HA.class "ams-hr" ] []
                 , testCaseSelectBox config toSelf model
-                , Html.div
-                    []
-                    ( model.displayCase
-                        |> Maybe.andThen
-                            (\idx ->
-                                Dict.get idx config.cases
-                                    |> Maybe.map
-                                        (\testCase ->
-                                            let
-                                                child =
-                                                    Dict.get idx model.pids
-                                            in
-                                            Maybe.map (renderChild model toSelf renderPID idx testCase) child
-                                                |> Maybe.withDefault (Html.text "")
-                                                |> List.singleton
-                                        )
+                , renderCases config toSelf renderPID model
+                ]
+
+
+renderCases config toSelf renderPID model =
+    let
+        testCases =
+            config.cases
+                |> Dict.toList
+
+        pids =
+            model.pids
+                |> Dict.values
+                |> List.map .pid
+    in
+    case model.cardMode of
+        Just columnCount ->
+            let
+                width =
+                    "calc("
+                        ++ (100 / (toFloat columnCount) |> String.fromFloat)
+                        ++ "% - "
+                        ++ ((toFloat columnCount - 1) / (toFloat columnCount) |> String.fromFloat)
+                        ++ "rem)"
+
+            in
+            List.greedyGroupsOf columnCount pids
+                |> List.map
+                    (\row ->
+                        Html.div
+                            [ HA.class "ams-card__row"
+                            ]
+                            (List.map
+                                (\col ->
+                                    Html.div
+                                        [ HA.style "width" width
+                                        , HA.class "ams-card__cell"
+                                        ]
+                                        [ renderPID col ]
+                                )
+                                row
                             )
-                        |> Maybe.withDefault
-                            ( testCases
-                                |> List.map
-                                    (\( idx, testCase ) ->
+                    )
+                |> Html.div
+                    [ HA.class "ams-card"
+                    ]
+
+        Nothing ->
+            Html.div
+                []
+                ( model.displayCase
+                    |> Maybe.andThen
+                        (\idx ->
+                            Dict.get idx config.cases
+                                |> Maybe.map
+                                    (\testCase ->
                                         let
                                             child =
                                                 Dict.get idx model.pids
                                         in
                                         Maybe.map (renderChild model toSelf renderPID idx testCase) child
                                             |> Maybe.withDefault (Html.text "")
+                                            |> List.singleton
                                     )
-                            )
-                    )
-                ]
-
+                        )
+                    |> Maybe.withDefault
+                        ( testCases
+                            |> List.map
+                                (\( idx, testCase ) ->
+                                    let
+                                        child =
+                                            Dict.get idx model.pids
+                                    in
+                                    Maybe.map (renderChild model toSelf renderPID idx testCase) child
+                                        |> Maybe.withDefault (Html.text "")
+                                )
+                        )
+                )
 
 pageHeader : (MsgIn msgIn msgOut -> msg) -> Model -> ColorConfig -> Html msg
 pageHeader toSelf model color =
@@ -576,6 +643,11 @@ testCaseSelectBox config toSelf model =
             config.cases
                 |> Dict.toList
 
+        cardLayouts =
+            List.range 2 8
+                |> List.map (\i -> ( i, (String.fromInt i) ++ " Columns"))
+                |> (::) ( 1, "1 Column" )
+
         ( currentPath, queryParams ) =
             model.currentUrl
                 |> Maybe.map parseUrl
@@ -585,6 +657,30 @@ testCaseSelectBox config toSelf model =
         [ HA.class "ams-select-testcase"
         ]
         [ Html.select
+            [ Events.onInput (toSelf << NavigateTo)
+            ]
+            (cardLayouts
+                |> List.map
+                    (\( cols, label ) ->
+                        Html.option
+                            [ HA.value <| buildHref [ "cardmode", String.fromInt cols ] queryParams
+                            , if model.cardMode == Just cols then
+                                HA.selected True
+                              else
+                                HA.selected False
+                            ]
+                            [ Html.text label
+                            ]
+                    )
+                |> (::)
+                    ( Html.option
+                        [ HA.value <| buildHref [] Dict.empty
+                        ]
+                        [ Html.text "-- Show UI Cards --"
+                        ]
+                    )
+            )
+        , Html.select
             [ Events.onInput (toSelf << NavigateTo)
             ]
             (testCases
@@ -912,6 +1008,20 @@ css =
         font-family: monospace;
         font-size: 0.8rem;
         color: #333;
+    }
+
+    /** Card Mode **/
+    .ams-card__row {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        margin-top: 1rem;
+    }
+
+    .ams-card__cell {
+        border-radius: 2px;
+        background: {{testCaseBg}};
+        position: relative;
     }
 
     /** Message Log **/
