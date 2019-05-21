@@ -34,12 +34,21 @@ anymore you will receive a `PIDNotFOund` event containing the PID of the
 killed process.
 This lets you clean up any PID's you stored in your model for example.
 
+Default handling for this event is to do nothing.
+
 ## Kill
 
 Kill is received when your component is going to be killed. You
 have the chance to say some last words before dying.
 
-@docs SystemEvent, Handling
+Default handling for Kill is to also kill all the children of
+the process.
+
+@docs SystemEvent
+
+# Handling
+
+@docs Handling, default, doNothing, iWillHandleIt
 
 -}
 import Webbhuset.Internal.PID exposing (PID)
@@ -60,21 +69,34 @@ type SystemEvent
 type alias Handling msgIn =
     Internal.Handling msgIn
 
+
+{-| Use event default handling.
+
+-}
 default : Handling msgIn
 default =
     Internal.Default
 
 
+{-| Don't do anyting.
+
+-}
 doNothing : Handling msgIn
 doNothing =
     Internal.DoNothing
 
 
+{-| Handle it yourself.
+
+-}
 iWillHandleIt : msgIn -> Handling msgIn
 iWillHandleIt msgIn =
     Internal.HandleWith msgIn
 
 
+{-| Map the Handling type.
+
+-}
 mapHandling : (msg1 -> msg2) -> Handling msg1 -> Handling msg2
 mapHandling fn handling =
     case handling of

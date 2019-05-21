@@ -243,6 +243,9 @@ sendToSingleton name msg =
 {-| Start an Actor. This will create a process. The PID will
 be sent in a message using the provied message constructor.
 
+The new process will become a child process of the process that sent the
+spawn message. This relationship is used when a process is killed.
+
     System.spawn
         ActorName.LoginForm
         (\pid ->
@@ -264,7 +267,8 @@ spawnSingleton name =
     Ctrl (SpawnSingleton name)
 
 
-{-| Kill a process.
+{-| Kill a process. This will also kill all the child processes by default.
+See Webbhuset.Component.SystemEvent.
 
 Singleton processes can not be killed. Attempts to do so will be ignored.
 
