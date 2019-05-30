@@ -104,15 +104,15 @@ import List.Extra as List
 {-| The Application model
 
 -}
-type alias Model m =
-    System.Model ActorName (Process m)
+type alias Model m o =
+    System.Model ActorName (Process m o)
 
 
 {-| The Program type of your main function.
 
 -}
 type alias SandboxProgram model msgIn msgOut =
-    Program () (Model model) (Msg msgIn msgOut)
+    Program () (Model model msgOut) (Msg msgIn msgOut)
 
 
 {-| A test case for the Component
@@ -274,7 +274,7 @@ service args =
 
 
 toApplication : Args i o
-    -> Actor model (Process model) (Msg i o)
+    -> Actor model (Process model o) (Msg i o)
     -> SandboxProgram model i o
 toApplication args testedActor =
     System.application
@@ -351,8 +351,8 @@ type ActorName
     | LoremIpsum
 
 
-type Process model
-    = P_Layout LayoutModel
+type Process model o
+    = P_Layout (LayoutModel o)
     | P_Component model
     | P_Nav Navigation.Model
     | P_LoremIpsum LoremIpsum.Model
@@ -371,10 +371,10 @@ type AppMsg msgIn msgOut
 
 
 spawn : Args i o
-    -> Actor model (Process model) (Msg i o)
+    -> Actor model (Process model o) (Msg i o)
     -> ActorName
     -> PID
-    -> ( Process model, Msg i o )
+    -> ( Process model o, Msg i o )
 spawn args tested name =
     case name of
         LayoutActor ->
@@ -392,9 +392,9 @@ spawn args tested name =
 
 applyModel :
     Args i o
-    -> Actor model (Process model) (Msg i o)
-    -> Process model
-    -> System.AppliedActor (Process model) (Html (Msg i o)) (Msg i o)
+    -> Actor model (Process model o) (Msg i o)
+    -> Process model o
+    -> System.AppliedActor (Process model o) (Html (Msg i o)) (Msg i o)
 applyModel args testedActor process =
     case process of
         P_Layout model ->
@@ -411,7 +411,7 @@ applyModel args testedActor process =
 
 -- Lorem Ipsum
 
-loremIpsum : Actor LoremIpsum.Model (Process model) (Msg msgIn msgOut)
+loremIpsum : Actor LoremIpsum.Model (Process model o) (Msg msgIn msgOut)
 loremIpsum =
     Actor.fromUI
         { wrapModel = P_LoremIpsum
@@ -433,7 +433,7 @@ loremIpsumMapIn appMsg =
 
 -- Navigation
 
-navigation : Actor Navigation.Model (Process model) (Msg msgIn msgOut)
+navigation : Actor Navigation.Model (Process model o) (Msg msgIn msgOut)
 navigation =
     Actor.fromService
         { wrapModel = P_Nav
@@ -470,7 +470,7 @@ type alias Args i o =
     }
 
 
-layoutActor : Args i o -> Actor LayoutModel (Process model) (Msg i o)
+layoutActor : Args i o -> Actor (LayoutModel o) (Process model o) (Msg i o)
 layoutActor args =
     Actor.fromLayout
         { wrapModel = P_Layout
@@ -567,7 +567,7 @@ type alias Config msgIn msgOut =
     }
 
 
-layoutComponent : Config i o -> Component.Layout LayoutModel (MsgIn i o) (MsgOut i o) msg
+layoutComponent : Config i o -> Component.Layout (LayoutModel o) (MsgIn i o) (MsgOut i o) msg
 layoutComponent config =
     { init = init config
     , update = update config
@@ -588,15 +588,15 @@ type Message
     | OutMessage String
 
 
-type alias LayoutModel =
+type alias LayoutModel msgOut =
     { pid : PID
     , pids : Dict Int Child
+    , initMsgsQueue : Dict String (List msgOut)
     , messages : Dict String (List Message)
     , displayCase : Maybe Int
     , cardMode : Maybe Int
     , title : String
     , currentUrl : Maybe Url
-    , viewMode : ViewMode
     }
 
 
@@ -630,15 +630,15 @@ type MsgOut msgIn msgOut
 --
 
 
-init : Config i o -> PID -> ( LayoutModel, List (MsgOut i o), Cmd (MsgIn i o) )
+init : Config i o -> PID -> ( LayoutModel o, List (MsgOut i o), Cmd (MsgIn i o) )
 init config pid =
     ( { pid = pid
       , pids = Dict.empty
+      , initMsgsQueue = Dict.empty
       , displayCase = Nothing
       , cardMode = Nothing
       , messages = Dict.empty
       , currentUrl = Nothing
-      , viewMode = Normal
       , title = config.title
       }
     , config.cases
@@ -651,17 +651,29 @@ init config pid =
     )
 
 
-update : Config i o -> (MsgIn i o) -> LayoutModel -> ( LayoutModel, List (MsgOut i o), Cmd (MsgIn i o) )
+update : Config i o -> (MsgIn i o) -> LayoutModel o -> ( LayoutModel o, List (MsgOut i o), Cmd (MsgIn i o) )
 update config msgIn model =
     case msgIn of
         NewPID idx pid ->
             let
-                (outMsgs, cmds) =
+                queuedMsgOut =
+                    Dict.get (PID.toString pid) model.initMsgsQueue
+                        |> Maybe.withDefault []
+
+                ( outMsgs, cmds ) =
                     Dict.get idx config.cases
-                        |> Maybe.map (\testCase -> runActions pid testCase.init)
+                        |> Maybe.map
+                            (\testCase ->
+                                List.concatMap testCase.onMsgOut queuedMsgOut
+                                    ++ testCase.init
+                                    |> runActions pid
+                            )
                         |> Maybe.withDefault ( [], Cmd.none )
             in
-            ( { model | pids = Dict.insert idx (Child pid) model.pids }
+            ( { model
+                | pids = Dict.insert idx (Child pid) model.pids
+                , initMsgsQueue = Dict.remove (PID.toString pid) model.initMsgsQueue
+              }
             , outMsgs
             , cmds
             )
@@ -678,12 +690,15 @@ update config msgIn model =
 
         HandleMsgOut pid msgOut ->
             let
-                msgStr =
+                message =
                     config.stringifyMsgOut msgOut
                         |> OutMessage
 
-                ( outMsgs, cmds ) =
+                maybeIdx =
                     findIdxFromPID pid model.pids
+
+                ( outMsgs, cmds ) =
+                    maybeIdx
                         |> Maybe.andThen (\idx -> Dict.get idx config.cases)
                         |> Maybe.map
                             (\test ->
@@ -691,23 +706,30 @@ update config msgIn model =
                                     |> runActions pid
                             )
                         |> Maybe.withDefault ( [], Cmd.none )
-            in
-            ( { model
-                | messages =
-                    Dict.update
-                        (PID.toString pid)
-                        (\mbMsg ->
-                            case mbMsg of
-                                Just messages ->
-                                    msgStr
-                                        :: messages
-                                        |> Just
 
-                                Nothing ->
-                                    [ msgStr ]
-                                        |> Just
-                        )
-                        model.messages
+                m2 =
+                    case maybeIdx of
+                        Just _ ->
+                            model
+
+                        Nothing ->
+                            { model
+                                | initMsgsQueue =
+                                    Dict.update
+                                        (PID.toString pid)
+                                        (\maybeMsgs ->
+                                            case maybeMsgs of
+                                                Just msgs ->
+                                                    Just <| msgs ++ [ msgOut ]
+
+                                                Nothing ->
+                                                    Just [ msgOut ]
+                                        )
+                                        model.initMsgsQueue
+                            }
+            in
+            ( { m2
+                | messages = logMessage pid message m2.messages
               }
             , outMsgs
             , cmds
@@ -728,21 +750,7 @@ update config msgIn model =
 
         LogMsg pid message ->
             ( { model
-                | messages =
-                    Dict.update
-                        (PID.toString pid)
-                        (\mbMsg ->
-                            case mbMsg of
-                                Just messages ->
-                                    message
-                                        :: messages
-                                        |> Just
-
-                                Nothing ->
-                                    [ message ]
-                                        |> Just
-                        )
-                        model.messages
+                | messages = logMessage pid message model.messages
               }
             , []
             , Cmd.none
@@ -809,6 +817,22 @@ update config msgIn model =
             , Cmd.none
             )
 
+logMessage : PID -> Message -> Dict String (List Message) -> Dict String (List Message)
+logMessage pid message dict =
+    Dict.update
+        (PID.toString pid)
+        (\mbMsg ->
+            case mbMsg of
+                Just messages ->
+                    message
+                        :: messages
+                        |> Just
+
+                Nothing ->
+                    [ message ]
+                        |> Just
+        )
+        dict
 
 parseUrl : Url -> ( List String, Dict String String ) 
 parseUrl url =
@@ -912,11 +936,6 @@ runActions pid actions =
 
 -- VIEW
 
-type ViewMode
-    = Fullscreen PID
-    | CardMode Int
-    | Normal
-
 
 type alias ColorConfig =
     { bgColor : String
@@ -951,7 +970,7 @@ colorsFromQueryParams queryParams =
     }
 
 
-view : Config msgIn msgOut -> ((MsgIn msgIn msgOut) -> msg) -> LayoutModel -> (PID -> Html msg) -> Html msg
+view : Config msgIn msgOut -> ((MsgIn msgIn msgOut) -> msg) -> LayoutModel msgOut -> (PID -> Html msg) -> Html msg
 view config toSelf model renderPID =
     let
         ( currentPath, queryParams ) =
@@ -1073,7 +1092,7 @@ renderCases config toSelf renderPID model =
                         )
                 )
 
-pageHeader : (MsgIn msgIn msgOut -> msg) -> LayoutModel -> ColorConfig -> Html msg
+pageHeader : (MsgIn msgIn msgOut -> msg) -> LayoutModel msgOut -> ColorConfig -> Html msg
 pageHeader toSelf model color =
     let
         ( currentPath, queryParams ) =
@@ -1141,7 +1160,7 @@ pageHeader toSelf model color =
 
 
 
-fullscreenToggle : (MsgIn msgIn msgOut -> msg) -> LayoutModel -> Int -> Html msg
+fullscreenToggle : (MsgIn msgIn msgOut -> msg) -> LayoutModel msgOut -> Int -> Html msg
 fullscreenToggle toSelf model testCaseIdx =
     let
         ( currentPath, queryParams ) =
@@ -1169,7 +1188,7 @@ fullscreenToggle toSelf model testCaseIdx =
         ]
 
 
-testCaseSelectBox : Config msgIn msgOut -> (MsgIn msgIn msgOut -> msg) -> LayoutModel -> Html msg
+testCaseSelectBox : Config msgIn msgOut -> (MsgIn msgIn msgOut -> msg) -> LayoutModel msgOut -> Html msg
 testCaseSelectBox config toSelf model =
     let
         testCases =
@@ -1262,7 +1281,7 @@ colorInput htmlID label color toMsg =
         ]
 
 
-renderChild : LayoutModel -> ((MsgIn i o) -> msg) -> (PID -> Html msg) -> Int -> TestCase i o -> Child -> Html msg
+renderChild : LayoutModel o -> ((MsgIn i o) -> msg) -> (PID -> Html msg) -> Int -> TestCase i o -> Child -> Html msg
 renderChild model toSelf renderPID idx testCase child =
     Html.div
         [ HA.class "ams-testcase"
