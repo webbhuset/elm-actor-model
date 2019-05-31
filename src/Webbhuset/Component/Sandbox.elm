@@ -55,6 +55,8 @@ A sandbox module example for `YourComponent`:
 
 # Create a Test Case
 
+Test cases defines scenarios for the requirements of your component.
+
 A Test Case is just a record with a title and description together
 with a list of Actions you want to perform on your sandboxed component.
 You can also the component's map out messages to actions to simulate the outside system.
@@ -83,10 +85,12 @@ You can also the component's map out messages to actions to simulate the outside
 
 ## Assertions
 
-Sometimes it is useful to test your expectations on a component.
+Sometimes it is useful to test your expectations or requirements on a component.
 
-You can express them using assertions. In this example we
-expect that `GoodMsg` is sent by the component within 1s. 
+You can express them using assertions. Assertions have three states: waiting, pass
+or fail. The state of a test case is visible in the sandbox UI.
+
+In this example we expect that `GoodMsg` is sent by the component within 1s.
 
     testGoodMsg : Sandbox.TestCase MsgIn MsgOut
     testGoodMsg =
@@ -94,6 +98,7 @@ expect that `GoodMsg` is sent by the component within 1s.
         , desc = "`GoodMsg` must be sent within 1 second. No other messages are allowed."
         , init =
             [ Sandbox.timeout 1000
+            , Sandbox.sendMsg YourComponent.SomeInput
             ]
         , onMsgOut = \msgOut ->
             case msgOut of
@@ -102,7 +107,7 @@ expect that `GoodMsg` is sent by the component within 1s.
                     ]
 
                 YourComponent.BadMsg ->
-                    [ Sandbox.fail "I like bad messages"
+                    [ Sandbox.fail "I don't like bad messages"
                     ]
 
 
