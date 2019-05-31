@@ -59,7 +59,7 @@ Test cases defines scenarios for the requirements of your component.
 
 A Test Case is just a record with a title and description together
 with a list of Actions you want to perform on your sandboxed component.
-You can also the component's map out messages to actions to simulate the outside system.
+You can also map the component's out messages to actions to simulate the outside system.
 
 @docs TestCase
 
