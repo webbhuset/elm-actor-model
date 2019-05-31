@@ -9,6 +9,9 @@ module Webbhuset.Component.Sandbox exposing
     , sendMsg
     , delay
     , spawnChild
+    , pass
+    , fail
+    , timeout
     )
 
 {-|
@@ -78,6 +81,33 @@ You can also the component's map out messages to actions to simulate the outside
 
 @docs Action, sendMsg, spawnChild, delay
 
+## Assertions
+
+Sometimes it is useful to test your expectations on a component.
+
+You can express them using assertions. In this example we
+expect that `GoodMsg` is sent by the component within 1s. 
+
+    testGoodMsg : Sandbox.TestCase MsgIn MsgOut
+    testGoodMsg =
+        { title = "Good messages are good"
+        , desc = "`GoodMsg` must be sent within 1 second. No other messages are allowed."
+        , init =
+            [ Sandbox.timeout 1000
+            ]
+        , onMsgOut = \msgOut ->
+            case msgOut of
+                YourComponent.GoodMsg ->
+                    [ Sandbox.pass
+                    ]
+
+                YourComponent.BadMsg ->
+                    [ Sandbox.fail "I like bad messages"
+                    ]
+
+
+@docs pass, fail, timeout
+
 @docs Msg
 
 -}
@@ -133,6 +163,9 @@ type Action msgIn
     = SendMsg msgIn
     | SpawnChild String (PID -> msgIn)
     | Delay Float (Action msgIn)
+    | Pass
+    | Fail String
+    | Timeout String
 
 {-| Spawn a child component and send the PID to your component.
 
@@ -170,6 +203,36 @@ sendMsg : msgIn -> Action msgIn
 sendMsg =
     SendMsg
 
+
+{-| Flag test case as passed.
+
+    Sandbox.pass
+-}
+pass : Action msgIn
+pass =
+    Pass
+
+
+{-| Flag test case as failed. You can supply a message explaining what
+went wrong.
+
+    Sandbox.fail "Didn't receive some important out msg"
+-}
+fail : String -> Action msgIn
+fail reason =
+    Fail reason
+
+
+{-| Set a timeout in milliseconds. This will cause the test to automatically fail
+after the timeout if the test havn't been flagged as passed by then.
+
+    Sandbox.timeout 1000
+-}
+timeout : Float -> Action msgIn
+timeout t =
+    "Timeout: " ++ (String.fromFloat t) ++ "ms"
+        |> Timeout
+        |> Delay t
 
 {-| Sandbox a UI Component
 
@@ -529,6 +592,15 @@ layoutMapOut toString p componentMsg =
                 Delay _ _ ->
                     System.none -- handled in sandbox component
 
+                Pass ->
+                    System.none -- handled in sandbox component
+
+                Fail _ ->
+                    System.none -- handled in sandbox component
+
+                Timeout _ ->
+                    System.none -- handled in sandbox component
+
                 SpawnChild title reply ->
                     System.spawn LoremIpsum
                         (\newPid ->
@@ -587,10 +659,16 @@ type Message
     = InMessage String
     | OutMessage String
 
+type TestResult
+    = Waiting
+    | TestFail String
+    | TestPass
+
 
 type alias LayoutModel msgOut =
     { pid : PID
     , pids : Dict Int Child
+    , testResult : Dict String TestResult
     , initMsgsQueue : Dict String (List msgOut)
     , messages : Dict String (List Message)
     , displayCase : Maybe Int
@@ -634,6 +712,7 @@ init : Config i o -> PID -> ( LayoutModel o, List (MsgOut i o), Cmd (MsgIn i o) 
 init config pid =
     ( { pid = pid
       , pids = Dict.empty
+      , testResult = Dict.empty
       , initMsgsQueue = Dict.empty
       , displayCase = Nothing
       , cardMode = Nothing
@@ -660,19 +739,20 @@ update config msgIn model =
                     Dict.get (PID.toString pid) model.initMsgsQueue
                         |> Maybe.withDefault []
 
-                ( outMsgs, cmds ) =
+                ( testResults, outMsgs, cmds ) =
                     Dict.get idx config.cases
                         |> Maybe.map
                             (\testCase ->
                                 List.concatMap testCase.onMsgOut queuedMsgOut
                                     ++ testCase.init
-                                    |> runActions pid
+                                    |> runActions model.testResult pid
                             )
-                        |> Maybe.withDefault ( [], Cmd.none )
+                        |> Maybe.withDefault ( model.testResult, [], Cmd.none )
             in
             ( { model
                 | pids = Dict.insert idx (Child pid) model.pids
                 , initMsgsQueue = Dict.remove (PID.toString pid) model.initMsgsQueue
+                , testResult = testResults
               }
             , outMsgs
             , cmds
@@ -680,10 +760,10 @@ update config msgIn model =
 
         RunAction pid action ->
             let
-                ( msgs, cmds ) =
-                    runActions pid [ action ]
+                ( testResults, msgs, cmds ) =
+                    runActions model.testResult pid [ action ]
             in
-            ( model
+            ( { model | testResult = testResults }
             , msgs
             , cmds
             )
@@ -697,15 +777,15 @@ update config msgIn model =
                 maybeIdx =
                     findIdxFromPID pid model.pids
 
-                ( outMsgs, cmds ) =
+                ( testResults, outMsgs, cmds ) =
                     maybeIdx
                         |> Maybe.andThen (\idx -> Dict.get idx config.cases)
                         |> Maybe.map
                             (\test ->
                                 test.onMsgOut msgOut
-                                    |> runActions pid
+                                    |> runActions model.testResult pid
                             )
-                        |> Maybe.withDefault ( [], Cmd.none )
+                        |> Maybe.withDefault ( model.testResult, [], Cmd.none )
 
                 m2 =
                     case maybeIdx of
@@ -730,6 +810,7 @@ update config msgIn model =
             in
             ( { m2
                 | messages = logMessage pid message m2.messages
+                , testResult = testResults
               }
             , outMsgs
             , cmds
@@ -834,6 +915,7 @@ logMessage pid message dict =
         )
         dict
 
+
 parseUrl : Url -> ( List String, Dict String String ) 
 parseUrl url =
     let
@@ -908,14 +990,18 @@ findIdxFromPID pid dict =
         |> Maybe.map Tuple.first
 
 
-runActions : PID -> List (Action i) -> ( List (MsgOut i o), Cmd (MsgIn i o) )
-runActions pid actions =
+runActions : Dict String TestResult
+    -> PID
+    -> List (Action i)
+    -> ( Dict String TestResult, List (MsgOut i o), Cmd (MsgIn i o) )
+runActions testResults pid actions =
     actions
         |> List.foldl
-            (\action ( msgs, cmds ) ->
+            (\action ( results, msgs, cmds ) ->
                 case action of
                     Delay delay_ delayedAction ->
-                        ( msgs
+                        ( results
+                        , msgs
                         , cmds
                             ++ [ Component.toCmdWithDelay
                                     delay_
@@ -925,13 +1011,43 @@ runActions pid actions =
                                 ]
                         )
 
+                    Pass ->
+                        ( Dict.insert (PID.toString pid) TestPass results
+                        , msgs
+                        , cmds
+                        )
+
+                    Fail reason ->
+                        ( Dict.insert (PID.toString pid) (TestFail reason) results
+                        , msgs
+                        , cmds
+                        )
+
+                    Timeout reason ->
+                        ( case Dict.get (PID.toString pid) results of
+                            Just TestPass ->
+                                results
+
+                            _ ->
+                                Dict.insert (PID.toString pid) (TestFail reason) results
+                        , msgs
+                        , cmds
+                        )
+
                     _ ->
-                        ( msgs ++ [ PerformAction pid action ]
+                        ( results
+                        , msgs ++ [ PerformAction pid action ]
                         , cmds
                         )
             )
-            ( [], [] )
-        |> Tuple.mapSecond Cmd.batch
+            ( testResults, [], [] )
+        |> Component.mapThird Cmd.batch
+
+
+testResult : PID -> Dict String TestResult -> TestResult
+testResult pid dict =
+    Dict.get (PID.toString pid) dict
+        |> Maybe.withDefault Waiting
 
 
 -- VIEW
@@ -1091,6 +1207,7 @@ renderCases config toSelf renderPID model =
                                 )
                         )
                 )
+
 
 pageHeader : (MsgIn msgIn msgOut -> msg) -> LayoutModel msgOut -> ColorConfig -> Html msg
 pageHeader toSelf model color =
@@ -1283,23 +1400,53 @@ colorInput htmlID label color toMsg =
 
 renderChild : LayoutModel o -> ((MsgIn i o) -> msg) -> (PID -> Html msg) -> Int -> TestCase i o -> Child -> Html msg
 renderChild model toSelf renderPID idx testCase child =
+    let
+        result =
+            testResult child.pid model.testResult
+    in
     Html.div
         [ HA.class "ams-testcase"
         ]
         [ Html.div
-            [ HA.class "ams-testcase__toolbar"
+            [ HA.class 
+                ( "ams-testcase__header"
+                    ++ ( case result of
+                            Waiting -> " ams-testcase__header--waiting"
+                            TestPass -> " ams-testcase__header--pass"
+                            TestFail _ -> " ams-testcase__header--fail"
+                       )
+                )
             ]
-            [ child.pid
-                |> (\(PID { key }) -> "PID: " ++ String.fromInt key)
-                |> Html.text
-                |> List.singleton
-                |> Html.span [ HA.class "ams-testcase__pidLabel" ]
-            , fullscreenToggle toSelf model idx 
-            , Html.button
-                [ Events.onClick (toSelf <| ReInit idx)
-                , HA.class "ams-button"
+            [ Html.div
+                [ HA.class "ams-testcase__result"
                 ]
-                [ Html.text "Reset test"
+                [ case result of
+                    Waiting ->
+                        Html.text "Waiting..."
+
+                    TestPass ->
+                        Html.text "Pass"
+
+                    TestFail reason ->
+                        Html.text reason
+                ]
+            , Html.div
+                [ HA.class
+                    ("ams-testcase__toolbar"
+                    )
+                ]
+                [ child.pid
+                    |> (\(PID { key }) -> "PID: " ++ String.fromInt key)
+                    |> Html.text
+                    |> List.singleton
+                    |> Html.span [ HA.class "ams-testcase__pidLabel" ]
+                , fullscreenToggle toSelf model idx
+                , Html.button
+                    [ Events.onClick (toSelf <| ReInit idx)
+                    , HA.class "ams-button"
+                    ]
+                    [ Html.text "Reset test"
+                    ]
                 ]
             ]
         , Html.div
@@ -1542,16 +1689,33 @@ css =
         background: {{componentBg}};
     }
 
-    .ams-testcase__toolbar {
+    .ams-testcase__header {
         display: flex;
         flex-direction: row;
-        justify-content: flex-end;
+        justify-content: space-between;
         align-items: center;
         border-bottom: 1px solid #f6f6f6;
         padding: 0.5rem 0;
         background: #f6f6f6;
         border-top-left-radius: 4px;
         border-top-right-radius: 4px;
+    }
+    .ams-testcase__header--pass {
+        background: #44f655;
+    }
+    .ams-testcase__header--fail {
+        background: #f65555;
+    }
+    .ams-testcase__result {
+        margin-left: 1rem;
+        font-family: monospace;
+    }
+
+    .ams-testcase__toolbar {
+        display: flex;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
     }
     .ams-testcase__toolbar > * {
         margin-right: 1rem;
