@@ -1017,13 +1017,23 @@ runActions testResults pid actions =
                         )
 
                     Pass ->
-                        ( Dict.insert (PID.toString pid) TestPass results
+                        ( case Dict.get (PID.toString pid) results of
+                            Just (TestFail _)->
+                                results
+
+                            _ ->
+                                Dict.insert (PID.toString pid) TestPass results
                         , msgs
                         , cmds
                         )
 
                     Fail reason ->
-                        ( Dict.insert (PID.toString pid) (TestFail reason) results
+                        ( case Dict.get (PID.toString pid) results of
+                            Just (TestFail _)->
+                                results
+
+                            _ ->
+                                Dict.insert (PID.toString pid) (TestFail reason) results
                         , msgs
                         , cmds
                         )
