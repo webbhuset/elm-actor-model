@@ -1123,6 +1123,30 @@ view config toSelf model renderPID =
             resolve (Dict.get caseIdx config.cases) <| \testCase ->
             resolve (Dict.get caseIdx model.pids) <| \child ->
                 Just ( caseIdx, testCase, child.pid )
+
+        ( passed, failed, waiting ) =
+            config.cases
+                |> Dict.keys
+                |> List.map
+                    (\idx ->
+                        Dict.get idx model.pids
+                            |> Maybe.map (\child -> testResult child.pid model.testResult)
+                            |> Maybe.withDefault Waiting
+                    )
+                |> List.foldl
+                    (\result ( p, f, w ) ->
+                        case result of
+                            Waiting ->
+                                ( p, f, w + 1 )
+
+                            TestPass ->
+                                ( p + 1, f, w )
+
+                            TestFail _ ->
+                                ( p, f + 1, w )
+                    )
+                    ( 0, 0, 0 )
+
     in
     case fullScreenMode of
         Just ( caseIdx, testCase, pid ) ->
@@ -1143,7 +1167,18 @@ view config toSelf model renderPID =
                     ]
                 , pageHeader toSelf model color
                 , Html.hr [ HA.class "ams-hr" ] []
-                , testCaseSelectBox config toSelf model
+                , Html.div
+                    [ HA.class "ams-above-cases"
+                    ]
+                    [ Html.div
+                        [ HA.class "ams-test-summary"
+                        ]
+                        [ Html.span [ HA.class "ams-test-summary--pass" ] [ Html.text <| "pass: " ++ (String.fromInt passed) ]
+                        , Html.span [ HA.class "ams-test-summary--fail" ] [ Html.text <| " fail: " ++ (String.fromInt failed) ]
+                        , Html.span [ HA.class "ams-test-summary--wait" ] [ Html.text <| " wait: " ++ (String.fromInt waiting) ]
+                        ]
+                    , testCaseSelectBox config toSelf model
+                    ]
                 , renderCases config toSelf renderPID model
                 ]
 
@@ -1252,7 +1287,8 @@ pageHeader toSelf model color =
         [ Html.h1
             [ HA.class "ams-pagetitle"
             ]
-            [ Html.text model.title ]
+            [ Html.text model.title
+            ]
         , Html.div
             [ HA.class "ams-colortoolbar"
             ]
@@ -1685,6 +1721,22 @@ css =
         font-size: 0.8rem;
         color: #fff;
         font-family: monospace;
+    }
+    .ams-above-cases {
+        display: flex;
+        justify-content: space-between;
+    }
+
+    .ams-test-summary {
+        font-family: monospace;
+    }
+
+    .ams-test-summary--pass {
+        color: #005511;
+    }
+
+    .ams-test-summary--fail {
+        color: #aa0000;
     }
 
     /** Test Case **/
