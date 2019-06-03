@@ -1370,12 +1370,28 @@ testCaseSelectBox config toSelf model =
             (testCases
                 |> List.map
                     (\( idx, testCase ) ->
+                        let
+                            result =
+                                Dict.get idx model.pids
+                                    |> Maybe.map
+                                        (\child ->
+                                            testResult child.pid model.testResult
+                                        )
+                                    |> Maybe.withDefault Waiting
+                        in
                         Html.option
                             [ HA.value <| buildHref [ "testcase", String.fromInt idx ] queryParams
                             , if model.displayCase == Just idx then
                                 HA.selected True
                               else
                                 HA.selected False
+                            , HA.style
+                                "color"
+                                (case result of
+                                    Waiting -> ""
+                                    TestPass -> "#009911"
+                                    TestFail _ -> "#aa0000"
+                                )
                             ]
                             [ Html.text testCase.title
                             ]
