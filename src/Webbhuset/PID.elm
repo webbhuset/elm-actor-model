@@ -38,6 +38,8 @@ toString (PID { prefix, key }) =
 
 {-| PID for testing purposes.
 
+Deprecated, see Webbhuset.Sandbox.mockPID instead
+
 -}
 null : PID
 null =
@@ -47,4 +49,5 @@ null =
         , key = 0
         , spawnedBy = 0
         }
+
 

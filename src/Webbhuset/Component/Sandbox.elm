@@ -12,6 +12,9 @@ module Webbhuset.Component.Sandbox exposing
     , pass
     , fail
     , timeout
+    , mockPID
+    , checkPID
+    , assertPID
     )
 
 {-|
@@ -120,6 +123,8 @@ In this example we expect that `GoodMsg` is sent by the component within 1s.
 
 
 @docs pass, fail, timeout
+
+@docs mockPID, checkPID, assertPID
 
 @docs Msg
 
@@ -246,6 +251,60 @@ timeout t =
     "Timeout: " ++ (String.fromFloat t) ++ "ms"
         |> Timeout
         |> Delay t
+
+
+{-| Create a mock PID for testing purposes.
+
+    mockPID "form-component"
+
+-}
+mockPID : String -> PID
+mockPID label =
+    PID
+        { isSingleton = False
+        , prefix = label
+        , key = 0
+        , spawnedBy = 0
+        }
+
+
+{-| Check that a mock pid matches an expected label.
+
+This will return `True`
+
+    mockPID "form-component"
+        |> checkPID "form-component"
+
+-}
+checkPID : String -> PID -> Bool
+checkPID label (PID { prefix } ) =
+    label == prefix
+
+
+{-| Assert that a PID matches a label.
+
+This will result in action `pass`
+
+    mockPID "form-component"
+        |> assertPID "form-component"
+
+This will result in the action
+`fail "PID form-component does not match expectation other-component"`
+
+    mockPID "form-component"
+        |> assertPID "other-component"
+
+        == pass
+
+-}
+assertPID : String -> PID -> Action msgIn
+assertPID expected (PID { prefix }) =
+    if prefix == expected then
+        pass
+    else
+        "PID \"" ++ prefix ++ "\"does not match expectation \"" ++ expected
+            |> fail
+
 
 {-| Sandbox a UI Component
 
