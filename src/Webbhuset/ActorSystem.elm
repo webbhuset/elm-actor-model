@@ -10,7 +10,6 @@ module Webbhuset.ActorSystem exposing
     , batch
     , element
     , kill
-    , toAppMsg
     , none
     , sendToPID
     , sendToSingleton
@@ -34,7 +33,6 @@ module Webbhuset.ActorSystem exposing
 
 @docs none
     , batch
-    , toAppMsg
 
 ## Processes
 
@@ -195,14 +193,6 @@ none =
     None
 
 
-{-| Wrapper for you app's msg type
-
--}
-toAppMsg : appMsg -> SysMsg name appMsg
-toAppMsg d =
-    AppMsg d
-
-
 {-| Batch control messages
 
 Similar concept to `Cmd.batch`
@@ -219,25 +209,17 @@ If the target process does not exists the sender component will
 receive the `PIDNotFound` system event. (`onSystem`).
 
 -}
-sendToPID : PID -> SysMsg name appMsg -> SysMsg name appMsg
+sendToPID : PID -> appMsg -> SysMsg name appMsg
 sendToPID pid msg =
-    if msg == None then
-        msg
-
-    else
-        Ctrl (SendToPID pid msg)
+    Ctrl (SendToPID pid (AppMsg msg))
 
 
 {-| Send a message to a Singleton Process
 
 -}
-sendToSingleton : name -> SysMsg name appMsg -> SysMsg name appMsg
+sendToSingleton : name -> appMsg -> SysMsg name appMsg
 sendToSingleton name msg =
-    if msg == None then
-        msg
-
-    else
-        Ctrl (SendToSingleton name msg)
+    Ctrl (SendToSingleton name (AppMsg msg))
 
 
 {-| Start an Actor. This will create a process. The PID will
@@ -254,7 +236,6 @@ Example - `Actor/PageLayout.elm`:
         (\spawnedPID ->
             PageLayout.SetContent spawnedPID
                 |> Msg.PageLayout
-                |> System.toAppMsg
                 |> System.sendToPID pageLayoutPID
         )
 
@@ -321,7 +302,7 @@ which makes it easier to send messages to it.
         ActorName.Header
         (\pid ->
             PageLayout.SetHeader pid
-                |> System.toAppMsg
+                |> Msg.PageLayout
                 |> System.sendToSingleton ActorName.PageLayout
         )
 
@@ -589,7 +570,7 @@ update impl context msg ((Model modelRecord) as model) =
                 SendToSingleton name message ->
                     case findSingletonPID name modelRecord of
                         Just pid ->
-                            update impl context (sendToPID pid message) model
+                            update impl context (Ctrl (SendToPID pid message)) model
 
                         Nothing ->
                             update impl context (spawnSingleton name) model
