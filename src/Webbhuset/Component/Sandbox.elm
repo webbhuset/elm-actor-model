@@ -124,6 +124,8 @@ In this example we expect that `GoodMsg` is sent by the component within 1s.
 
 @docs pass, fail, timeout
 
+## Assert PIDs
+
 @docs mockPID, checkPID, assertPID
 
 @docs Msg
@@ -293,8 +295,6 @@ This will result in the action
 
     mockPID "form-component"
         |> assertPID "other-component"
-
-        == pass
 
 -}
 assertPID : String -> PID -> Action msgIn
@@ -1108,6 +1108,9 @@ runActions testResults pid actions =
                     Timeout reason ->
                         ( case Dict.get (PID.toString pid) results of
                             Just TestPass ->
+                                results
+
+                            Just (TestFail _)->
                                 results
 
                             _ ->

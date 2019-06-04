@@ -17,6 +17,7 @@ main =
             , test_timeout
             , test_timeout2
             , test_timeout3
+            , test_pid
             ]
         , stringifyMsgIn = Debug.toString
         , stringifyMsgOut = Debug.toString
@@ -173,6 +174,48 @@ animation frame.
             Example.SomethingGood 2 ->
                 [ Sandbox.pass
                 ]
+
+            _ ->
+                [ ]
+    }
+
+
+test_pid : Sandbox.TestCase Example.MsgIn Example.MsgOut
+test_pid =
+    let
+        fakePID =
+            Sandbox.mockPID "a-component"
+
+        fakePID2 =
+            Sandbox.mockPID "another-component"
+    in
+    { title = "Assert PIDs"
+    , desc =
+    """
+You can assert PIDs when using with the observer pattern.
+
+Check that both observers receive the string "new thing".
+    """
+    , init =
+        [ Sandbox.timeout 30
+        , Example.ObserveSomething fakePID
+            |> Sandbox.sendMsg
+        , Example.ObserveSomething fakePID2
+            |> Sandbox.sendMsg
+        , Example.ChangeSomething "new thing"
+            |> Sandbox.sendMsg
+        ]
+    , onMsgOut = \outMsg ->
+        case outMsg of
+            Example.SomethingWasChanged pids thing ->
+                if List.any ((==) fakePID) pids
+                    && List.any ((==) fakePID2) pids
+                    && thing == "new thing"
+                then
+                    [ Sandbox.pass
+                    ]
+                else
+                    []
 
             _ ->
                 [ ]
