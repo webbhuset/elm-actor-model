@@ -18,6 +18,9 @@ main =
         , apply = Bootstrap.applyModel
         , init = init
         , view = view
+        , onDebug = \error ->
+            Debug.log "error" error
+                |> always System.none
         }
 
 
@@ -25,6 +28,8 @@ init : () -> Msg
 init flags =
     [ System.withSingletonPID ActorName.TodoList System.addView
     , System.spawnSingleton ActorName.TodoService
+    , Msg.Dummy
+        |> System.sendToSingleton ActorName.TodoService
     ]
         |> System.batch
 
