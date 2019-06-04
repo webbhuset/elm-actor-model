@@ -21,6 +21,14 @@ module Webbhuset.Component.Sandbox exposing
 The sandbox module is helpful when developing components. It lets you
 run the component using `elm reactor` outside the system and define several test cases.
 
+If you want to run your sandbox on a CI you can add #markdown to the URL. This
+will output the test results as a markdown string inside a pre element:
+
+    <pre id="markdown-output"> Results here </pre>
+
+This way you can complile the sandbox, run it in a headless Chrome and dump
+the DOM. From the DOM you can extract the results.
+
 @docs SandboxProgram
 
 
@@ -1148,8 +1156,16 @@ view config toSelf model renderPID =
                     ( 0, 0, 0 )
 
     in
-    case fullScreenMode of
-        Just ( caseIdx, testCase, pid ) ->
+    case (currentPath, fullScreenMode) of
+        ( [ "markdown" ], _ ) ->
+            renderCli config model { pass = passed, fail = failed, wait = waiting }
+                |> Html.text
+                |> List.singleton
+                |> Html.pre
+                    [ HA.id "markdown-output"
+                    ]
+
+        ( _, Just ( caseIdx, testCase, pid ) ) ->
             renderPID pid
 
         _ ->
@@ -1181,6 +1197,60 @@ view config toSelf model renderPID =
                     ]
                 , renderCases config toSelf renderPID model
                 ]
+
+
+renderCli : Config i o -> LayoutModel o -> { pass : Int, fail : Int, wait : Int } -> String
+renderCli config model summary =
+    config.cases
+        |> Dict.toList
+        |> List.map
+            (\( idx, test ) ->
+                Dict.get idx model.pids
+                    |> Maybe.map
+                        (\child ->
+                            let
+                                result =
+                                    testResult child.pid model.testResult
+                            in
+                            case result of
+                                Waiting ->
+                                    [ ( "title", test.title )
+                                    , ( "status","wait" )
+                                    ]
+
+                                TestPass ->
+                                    [ ( "title", test.title )
+                                    , ( "status", "pass" )
+                                    ]
+
+                                TestFail reason ->
+                                        [ ( "title", test.title )
+                                        , ( "status", "fail" )
+                                        , ( "reason", reason )
+                                        ]
+                        )
+                    |> Maybe.withDefault ([ ( "title", test.title ) ])
+                    |> List.map
+                        (\( k, v ) ->
+                            "- " ++ k ++ ": " ++ v
+                        )
+                    |> String.join "\n"
+            )
+        |> List.indexedMap
+            (\i t ->
+                "## Test " ++ (String.fromInt i) ++ "\n" ++ t
+            )
+        |> String.join "\n\n"
+        |> (\tests ->
+                "# "
+                ++ config.title
+                ++ "\n\nSummary:"
+                ++ "\n- total pass: " ++ (String.fromInt summary.pass)
+                ++ "\n- total fail: " ++ (String.fromInt summary.fail)
+                ++ "\n- total wait: " ++ (String.fromInt summary.wait)
+                ++ "\n\n"
+                ++ tests
+           )
 
 
 renderCases config toSelf renderPID model =
