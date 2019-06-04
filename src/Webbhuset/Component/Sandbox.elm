@@ -1885,6 +1885,11 @@ css =
     }
     .ams-testcase__desc {
         font-family: sans-serif;
+        max-width: 50rem;
+    }
+    .ams-testcase__desc code {
+        background-color: #eee;
+        padding: 1px 5px;
     }
     .ams-testcase__componentview {
         border: 1px solid #e7e7e7;
