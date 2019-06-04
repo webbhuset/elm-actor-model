@@ -42,7 +42,7 @@ type alias PID =
 
 -}
 type Set
-    = PIDSet (Dict Int PID)
+    = PIDSet (Dict (String, Int) PID)
 
 
 {-| Create an empty set
@@ -57,8 +57,8 @@ empty =
 
 -}
 insert : PID -> Set -> Set
-insert ((PID { key } as pid)) (PIDSet dict) =
-    Dict.insert key pid dict
+insert ((PID { prefix, key } as pid)) (PIDSet dict) =
+    Dict.insert (prefix, key) pid dict
         |> PIDSet
 
 
@@ -66,8 +66,8 @@ insert ((PID { key } as pid)) (PIDSet dict) =
 
 -}
 remove : PID -> Set -> Set
-remove (PID { key }) (PIDSet dict) =
-    Dict.remove key dict
+remove (PID { prefix, key }) (PIDSet dict) =
+    Dict.remove (prefix, key) dict
         |> PIDSet
 
 
