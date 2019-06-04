@@ -641,6 +641,7 @@ renderCli config model summary =
         |> (\tests ->
                 "# "
                 ++ config.title
+                ++ "\n\nsandbox version: 3"
                 ++ "\n\nSummary:"
                 ++ "\n- total pass: " ++ (String.fromInt summary.pass)
                 ++ "\n- total fail: " ++ (String.fromInt summary.fail)
