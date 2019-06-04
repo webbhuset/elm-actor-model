@@ -424,19 +424,16 @@ toApplication args testedActor =
                         Url.toString url
                             |> Navigation.Push
                             |> NavMsg
-                            |> System.toAppMsg
                             |> System.sendToSingleton Navigation
 
                     Browser.External str ->
                         str
                             |> Navigation.Load
                             |> NavMsg
-                            |> System.toAppMsg
                             |> System.sendToSingleton Navigation
         , onUrlChange =
             UrlChanged
                 >> LayoutMsg
-                >> System.toAppMsg
                 >> System.sendToSingleton LayoutActor
         }
 
@@ -447,11 +444,9 @@ initApp _ url key =
         [ System.withSingletonPID LayoutActor System.addView
         , Navigation.Init key url
             |> NavMsg
-            |> System.toAppMsg
             |> System.sendToSingleton Navigation
         , UrlChanged url
             |> LayoutMsg
-            |> System.toAppMsg
             |> System.sendToSingleton LayoutActor
         ]
 
@@ -471,7 +466,6 @@ testedMapOut toString pid componentMsg =
     componentMsg
         |> HandleMsgOut pid
         |> LayoutMsg
-        |> System.toAppMsg
         |> System.sendToSingleton LayoutActor
 
 
@@ -639,7 +633,6 @@ layoutMapOut toString p componentMsg =
         Spawn replyPID reply ->
              reply
                 >> LayoutMsg
-                >> System.toAppMsg
                 >> System.sendToPID replyPID
                 |> System.spawn TestedActor
 
@@ -654,10 +647,8 @@ layoutMapOut toString p componentMsg =
                             |> InMessage
                             |> LogMsg subject
                             |> LayoutMsg
-                            |> System.toAppMsg
                             |> System.sendToSingleton LayoutActor
                         , ComponentMsg msg
-                            |> System.toAppMsg
                             |> System.sendToPID subject
                         ]
 
@@ -679,18 +670,15 @@ layoutMapOut toString p componentMsg =
                             System.batch
                                 [ reply newPid
                                     |> ComponentMsg
-                                    |> System.toAppMsg
                                     |> System.sendToPID subject
                                 , LoremIpsum.SetText title
                                     |> LoremIpsumMsg
-                                    |> System.toAppMsg
                                     |> System.sendToPID newPid
                                 , reply newPid
                                     |> toString
                                     |> InMessage
                                     |> LogMsg subject
                                     |> LayoutMsg
-                                    |> System.toAppMsg
                                     |> System.sendToSingleton LayoutActor
                                 ]
                         )
@@ -698,7 +686,6 @@ layoutMapOut toString p componentMsg =
         NavigateToHref href ->
             Navigation.Push href
                 |> NavMsg
-                |> System.toAppMsg
                 |> System.sendToSingleton Navigation
 
 
