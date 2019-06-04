@@ -435,6 +435,7 @@ toApplication args testedActor =
             UrlChanged
                 >> LayoutMsg
                 >> System.sendToSingleton LayoutActor
+        , onDebug = always System.none
         }
 
 

@@ -3,6 +3,7 @@ module Webbhuset.ActorSystem exposing
     , Actor
     , Model
     , SysMsg
+    , Error
     , PID
     , addView
     , application
@@ -69,6 +70,11 @@ than just a blank page.
 @docs addView
     , setDocumentTitle
 
+
+## Debug logging
+
+@docs Error
+
 ## Bootstrap
 
 Don't worry about these for now.
@@ -118,7 +124,7 @@ type Model name appModel =
 
 
 type alias ModelRecord name appModel =
-    { instances : Dict Int ( PID, appModel )
+    { instances : Dict Int (Instance name appModel)
     , children : Dict Int (Set Int)
     , lastPID : Int
     , prefix : String
@@ -127,6 +133,12 @@ type alias ModelRecord name appModel =
     , documentTitle : String
     }
 
+
+type alias Instance name appModel =
+    { pid : PID
+    , name : name
+    , appModel : appModel
+    }
 
 {-| An actor is a component that is configured to be part of the system.
 
@@ -157,6 +169,7 @@ type alias Impl name appModel output appMsg a =
     { a
         | spawn : name -> PID -> ( appModel, SysMsg name appMsg )
         , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
+        , onDebug : Error name appMsg -> SysMsg name appMsg
     }
 
 
@@ -168,6 +181,7 @@ type alias ElementImpl flags name appModel output appMsg =
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
+    , onDebug : Error name appMsg -> SysMsg name appMsg
     }
 
 
@@ -181,7 +195,17 @@ type alias ApplicationImpl flags name appModel output appMsg =
     , view : List output -> Html (SysMsg name appMsg)
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
+    , onDebug : Error name appMsg -> SysMsg name appMsg
     }
+
+
+{-| Developer errors
+
+-}
+type Error name appMsg
+    = UnmappedInMsgFor name appMsg
+    | Bug String
+
 
 {-| Don't send or do anything.
 
@@ -337,6 +361,7 @@ element :
     , spawn : name -> PID -> ( appModel, SysMsg name appMsg )
     , apply : appModel -> AppliedActor appModel output (SysMsg name appMsg)
     , view : List output -> Html (SysMsg name appMsg)
+    , onDebug : Error name appMsg -> SysMsg name appMsg
     }
     -> Program flags (Model name appModel) (SysMsg name appMsg)
 element impl =
@@ -360,6 +385,7 @@ application :
     , view : List output -> Html (SysMsg name appMsg)
     , onUrlRequest : Browser.UrlRequest -> SysMsg name appMsg
     , onUrlChange : Url -> SysMsg name appMsg
+    , onDebug : Error name appMsg -> SysMsg name appMsg
     }
     -> Program flags (Model name appModel) (SysMsg name appMsg)
 application impl =
@@ -478,15 +504,38 @@ update impl context msg ((Model modelRecord) as model) =
             ( model, Cmd.none )
 
         AppMsg _ ->
-            ( model, Cmd.none )
+            update
+                impl
+                context
+                (Bug "AppMsg on the fly. This should never happen."
+                    |> impl.onDebug
+                )
+                model
 
         Init initMsg prefix ->
             { modelRecord | prefix = prefix }
                 |> Model
                 |> update impl context initMsg
 
-        UnmappedMsg appMsg ->
-            ( model, Cmd.none )
+        UnmappedMsg pid appMsg ->
+            case getProcess pid modelRecord of
+                Just process ->
+                    update
+                        impl
+                        context
+                        (UnmappedInMsgFor process.name appMsg
+                            |> impl.onDebug
+                        )
+                        model
+
+                Nothing ->
+                    update
+                        impl
+                        context
+                        (Bug "Process does not exist. This should never happen."
+                            |> impl.onDebug
+                        )
+                        model
 
         Context pid subMsg ->
             update impl (Just pid) subMsg model
@@ -512,7 +561,7 @@ update impl context msg ((Model modelRecord) as model) =
 
                 SendToPID pid message ->
                     case getProcess pid modelRecord of
-                        Just appModel ->
+                        Just { name, appModel } ->
                             let
                                 appMsgs =
                                     collectAppMsgs message
@@ -534,7 +583,7 @@ update impl context msg ((Model modelRecord) as model) =
 
                                             )
                                             (appModel, None)
-                                        |> Tuple.mapFirst (updateInstanceIn modelRecord pid >> Model)
+                                        |> Tuple.mapFirst (updateInstanceIn modelRecord name pid >> Model)
                             in
                             update impl context newMsg m2
 
@@ -543,10 +592,10 @@ update impl context msg ((Model modelRecord) as model) =
                                 |> Maybe.map
                                     (\senderPID ->
                                         case getProcess senderPID modelRecord of
-                                            Just senderModel ->
+                                            Just senderProcess ->
                                                 let
                                                     (AppliedActor applied) =
-                                                        impl.apply senderModel
+                                                        impl.apply senderProcess.appModel
 
                                                     whatToDo =
                                                         applied.onSystem (SystemEvent.PIDNotFound pid) senderPID
@@ -634,13 +683,13 @@ handleKill impl context ((PID pidMeta) as pid) ((Model modelRecord) as model) =
                             >> List.filterMap
                                 (\key ->
                                     Dict.get key modelRecord.instances
-                                        |> Maybe.map Tuple.first
+                                        |> Maybe.map .pid
                                 )
                         )
                     |> Maybe.withDefault []
         in
         case Dict.get pidMeta.key modelRecord.instances of
-            Just ( _, appModel ) ->
+            Just { appModel } ->
                 let
                     (AppliedActor applied) =
                         impl.apply appModel
@@ -683,7 +732,7 @@ handleKill impl context ((PID pidMeta) as pid) ((Model modelRecord) as model) =
 spawn_ : Impl name appModel output appMsg a -> name -> PID -> ModelRecord name appModel -> ( ModelRecord name appModel, SysMsg name appMsg )
 spawn_ impl name pid model =
     impl.spawn name pid
-        |> Tuple.mapFirst (updateInstanceIn model pid)
+        |> Tuple.mapFirst (updateInstanceIn model name pid)
 
 
 newPID : Maybe PID -> Bool -> ModelRecord name appModel -> ( ModelRecord name appModel, PID )
@@ -719,15 +768,16 @@ newPID context isSingleton model =
             }
 
 
-getProcess : PID -> ModelRecord name appModel -> Maybe appModel
+getProcess : PID -> ModelRecord name appModel -> Maybe (Instance name appModel)
 getProcess (PID { key }) model =
     Dict.get key model.instances
-        |> Maybe.map Tuple.second
 
 
-updateInstanceIn : ModelRecord name appModel -> PID -> appModel -> ModelRecord name appModel
-updateInstanceIn model ((PID { key }) as pid) appModel =
-    { model | instances = Dict.insert key ( pid, appModel ) model.instances }
+updateInstanceIn : ModelRecord name appModel -> name -> PID -> appModel -> ModelRecord name appModel
+updateInstanceIn model name ((PID { key }) as pid) appModel =
+    { model
+        | instances = Dict.insert key { pid = pid, name = name, appModel = appModel } model.instances
+    }
 
 
 appendSingleton : name -> PID -> ModelRecord name appModel -> ModelRecord name appModel
@@ -748,7 +798,7 @@ subscriptions : Impl name appModel output appMsg a -> Model name appModel -> Sub
 subscriptions impl (Model model) =
     model.instances
         |> Dict.foldl
-            (\key ( pid, appModel ) subs ->
+            (\key { pid, appModel } subs ->
                 let
                     (AppliedActor applied) =
                         impl.apply appModel
@@ -771,10 +821,10 @@ view impl (Model model) =
     model.views
         |> List.filterMap
             (renderPID
-                (\( _, processModel ) ->
+                (\{ appModel } ->
                     let
                         (AppliedActor applied) =
-                            impl.apply processModel
+                            impl.apply appModel
                     in
                     applied.view
                 )

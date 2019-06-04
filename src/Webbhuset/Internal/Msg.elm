@@ -6,7 +6,7 @@ import Webbhuset.Internal.PID as PID exposing (PID(..))
 type Msg name appMsg
     = None
     | AppMsg appMsg
-    | UnmappedMsg appMsg
+    | UnmappedMsg PID appMsg
     | Ctrl (Control name (Msg name appMsg))
     | Context PID (Msg name appMsg)
     | Init (Msg name appMsg) String

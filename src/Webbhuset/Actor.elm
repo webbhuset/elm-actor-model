@@ -336,7 +336,7 @@ wrapUpdate args update model msg pid =
                         |> Tuple.mapFirst args.wrapModel
 
                 Nothing ->
-                    ( args.wrapModel model, Msg.UnmappedMsg appMsg )
+                    ( args.wrapModel model, Msg.UnmappedMsg pid appMsg )
 
         _ ->
             ( args.wrapModel model, Msg.None )
