@@ -3,7 +3,7 @@ module Webbhuset.ActorSystem exposing
     , Actor
     , Model
     , SysMsg
-    , Error
+    , Error(..)
     , PID
     , addView
     , application
