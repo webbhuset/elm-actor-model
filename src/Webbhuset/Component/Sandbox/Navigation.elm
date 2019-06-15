@@ -132,8 +132,8 @@ updateRunning msgIn model =
             , Nav.pushUrl model.key href
             )
 
-        Load href ->
+        Load url ->
             ( model
             , []
-            , Cmd.none
+            , Nav.load url
             )
