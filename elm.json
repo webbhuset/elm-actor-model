@@ -3,7 +3,7 @@
     "name": "webbhuset/elm-actor-model",
     "summary": "Framework for Component based systems using the Actor Model",
     "license": "MIT",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "exposed-modules": {
         "Components": [
             "Webbhuset.Component",
