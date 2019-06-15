@@ -19,6 +19,7 @@ main =
             , test_timeout3
             , test_pid
             ]
+            ++ (Sandbox.permuteInitOrder test_initOrder)
         , stringifyMsgIn = Debug.toString
         , stringifyMsgOut = Debug.toString
         , wrapView = view
@@ -66,7 +67,7 @@ Levels are:
         ]
     , onMsgOut = \outMsg ->
         case outMsg of
-            Example.SomethingBad ->
+            Example.SomethingBad _ ->
                 [ Sandbox.fail "You ruined it...."
                 ]
 
@@ -95,7 +96,7 @@ Try waiting and the test will fail.
         ]
     , onMsgOut = \outMsg ->
         case outMsg of
-            Example.SomethingBad ->
+            Example.SomethingBad _ ->
                 [ Sandbox.fail "You ruined it...."
                 ]
 
@@ -131,7 +132,7 @@ Since `GoodButtonClicked` is sent directly from init this test passes.
         ]
     , onMsgOut = \outMsg ->
         case outMsg of
-            Example.SomethingBad ->
+            Example.SomethingBad _ ->
                 [ Sandbox.fail "You ruined it...."
                 ]
 
@@ -162,7 +163,7 @@ animation frame.
         ]
     , onMsgOut = \outMsg ->
         case outMsg of
-            Example.SomethingBad ->
+            Example.SomethingBad _ ->
                 [ Sandbox.fail "You ruined it...."
                 ]
 
@@ -216,6 +217,50 @@ Check that both observers receive the string "new thing".
                     ]
                 else
                     []
+
+            _ ->
+                [ ]
+    }
+
+
+test_initOrder : Sandbox.TestCase Example.MsgIn Example.MsgOut
+test_initOrder =
+    { title = "Example permuteInitOrder"
+    , desc =
+    """
+Sometimes it is useful to test if the order of your init messages would
+affect the test result. One way to do so is by permuting all possible
+orders and test them. This is what `permuteInitOrder` does.
+
+In this test case, `GoodButtonClicked` must be sent before `BadButtonClicked` for the
+test to pass.
+
+As you can see, there are 6 permutations of our test since it has 3 init messages. (3! or 3 x 2 x 1).
+Half of the tests fail since the they have the "wrong" order.
+
+    """
+    , init =
+        [ Sandbox.timeout 30
+        , Sandbox.sendMsg Example.GoodButtonClicked
+        , Sandbox.sendMsg (Example.ChangeSomething "")
+        , Sandbox.sendMsg Example.BadButtonClicked
+        ]
+    , onMsgOut = \outMsg ->
+        case outMsg of
+            Example.SomethingBad x ->
+                if x < 0 then
+                    [ Sandbox.fail "Got BadButtonClicked before GoodButtonClicked"
+                    ]
+                else
+                    []
+
+            Example.SomethingGood x ->
+                if x == 1 then
+                    [ Sandbox.pass
+                    ]
+                else
+                    []
+
 
             _ ->
                 [ ]

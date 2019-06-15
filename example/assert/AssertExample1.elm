@@ -24,7 +24,7 @@ type MsgIn
 
 type MsgOut
     = SomethingGood Int
-    | SomethingBad
+    | SomethingBad Int
     | SomethingWasChanged (List PID) String
 
 
@@ -84,7 +84,7 @@ update msgIn model =
 
         BadButtonClicked ->
             ( { model | howGood = model.howGood - 1 }
-            , [ SomethingBad
+            , [ SomethingBad (model.howGood - 1)
               ]
             , Cmd.none
             )

@@ -12,6 +12,7 @@ module Webbhuset.Component.Sandbox exposing
     , pass
     , fail
     , timeout
+    , permuteInitOrder
     , mockPID
     , checkPID
     , assertPID
@@ -123,6 +124,14 @@ In this example we expect that `GoodMsg` is sent by the component within 1s.
 
 
 @docs pass, fail, timeout
+
+## Permutate the init order
+
+Sometimes it is useful to test if the order of your init messages would
+affect the test result. One way to do so is by permuting all possible
+orders and test them. This is what `permuteInitOrder` does.
+
+@docs permuteInitOrder
 
 ## Assert PIDs
 
@@ -250,6 +259,48 @@ timeout t =
         |> Layout.Timeout
         |> Layout.Delay t
 
+
+{-| Take one test case and permute all possible orders of init messages.
+
+
+-}
+permuteInitOrder : TestCase msgIn msgOut -> List (TestCase msgIn msgOut)
+permuteInitOrder testCase =
+    let
+        (affected, notAffected) =
+            testCase.init
+                |> List.partition isAffectedByOrder
+    in
+    List.permutations affected
+        |> List.indexedMap
+            (\idx permutation ->
+                { testCase
+                    | init = permutation ++ notAffected
+                    , title = testCase.title ++ " (permutation " ++ (String.fromInt <| 1 + idx) ++ ")"
+                }
+            )
+
+
+isAffectedByOrder : Action i -> Bool
+isAffectedByOrder action =
+    case action of
+        Layout.SendMsg _ ->
+            True
+
+        Layout.SpawnChild _ _ ->
+            True
+
+        Layout.Delay _ a ->
+            isAffectedByOrder a
+
+        Layout.Pass ->
+            False
+
+        Layout.Fail _ ->
+            False
+
+        Layout.Timeout _ ->
+            False
 
 {-| Create a mock PID for testing purposes.
 
