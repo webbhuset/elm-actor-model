@@ -7,7 +7,12 @@ import Html exposing (Html)
 import Html.Attributes as HA
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
+type alias Model = ComponentAlias.Model
+type alias MsgIn = ComponentAlias.MsgIn
+type alias MsgOut = ComponentAlias.MsgOut
+
+
+main : SandboxProgram Model MsgIn MsgOut
 main =
     Sandbox.ui
         { title = "UI Component"
@@ -24,7 +29,7 @@ main =
 
 This is useful when you want to add CSS style or some extra test buttons.
 -}
-view : Html ComponentAlias.MsgIn -> Html ComponentAlias.MsgIn
+view : Html MsgIn -> Html MsgIn
 view componentHtml =
     Html.div
         [ HA.class "component"
@@ -43,7 +48,7 @@ css =
 """
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
+test_init : Sandbox.TestCase MsgIn MsgOut
 test_init =
     { title = "Test case title"
     , desc =

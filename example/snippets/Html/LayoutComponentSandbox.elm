@@ -7,7 +7,12 @@ import Html.Attributes as HA
 import Html.LayoutComponent as ComponentAlias
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
+type alias Model = ComponentAlias.Model
+type alias MsgIn = ComponentAlias.MsgIn
+type alias MsgOut = ComponentAlias.MsgOut
+
+
+main : SandboxProgram Model MsgIn MsgOut
 main =
     Sandbox.layout
         { title = "Layout Component"
@@ -26,7 +31,7 @@ main =
 
 This is useful when you want to add CSS style or some extra test buttons.
 -}
-view : (ComponentAlias.MsgIn -> msg) -> Html msg -> Html msg
+view : (MsgIn -> msg) -> Html msg -> Html msg
 view toSelf componentHtml =
     Html.div
         [ HA.class "component"
@@ -46,7 +51,7 @@ css =
 
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
+test_init : Sandbox.TestCase MsgIn MsgOut
 test_init =
     { title = "Test case title"
     , desc =

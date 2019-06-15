@@ -6,7 +6,12 @@ import Html exposing (Html)
 import ServiceComponent as ComponentAlias
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
+type alias Model = ComponentAlias.Model
+type alias MsgIn = ComponentAlias.MsgIn
+type alias MsgOut = ComponentAlias.MsgOut
+
+
+main : SandboxProgram Model MsgIn MsgOut
 main =
     Sandbox.service
         { title = "Service Component"
@@ -25,13 +30,13 @@ main =
 service component's model.
 
 -}
-view : ComponentAlias.Model -> Html ComponentAlias.MsgIn
+view : Model -> Html MsgIn
 view model =
     Html.text "Hello"
 
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
+test_init : Sandbox.TestCase MsgIn MsgOut
 test_init =
     { title = "Test case title"
     , desc =

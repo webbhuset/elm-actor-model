@@ -7,7 +7,12 @@ import Html exposing (Html)
 import Element exposing (Element)
 
 
-main : SandboxProgram ComponentAlias.Model ComponentAlias.MsgIn ComponentAlias.MsgOut
+type alias Model = ComponentAlias.Model
+type alias MsgIn = ComponentAlias.MsgIn
+type alias MsgOut = ComponentAlias.MsgOut
+
+
+main : SandboxProgram Model MsgIn MsgOut
 main =
     Sandbox.ui
         { title = "Elm UI UI Component"
@@ -24,14 +29,14 @@ main =
 
 This is useful when you want to add CSS style or some extra test buttons.
 -}
-view : Element ComponentAlias.MsgIn -> Html ComponentAlias.MsgIn
+view : Element MsgIn -> Html MsgIn
 view componentHtml =
     componentHtml
         |> Element.layout []
 
 
 
-test_init : Sandbox.TestCase ComponentAlias.MsgIn ComponentAlias.MsgOut
+test_init : Sandbox.TestCase MsgIn MsgOut
 test_init =
     { title = "Test case title"
     , desc =
