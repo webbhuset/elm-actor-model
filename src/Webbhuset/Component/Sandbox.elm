@@ -129,7 +129,7 @@ In this example we expect that `GoodMsg` is sent by the component within 1s.
 
 Sometimes it is useful to test if the order of your init messages would
 affect the test result. One way to do so is by permuting all possible
-orders and test them. This is what `permuteInitOrder` does.
+orders and test them.
 
 @docs permuteInitOrder
 
