@@ -1,10 +1,10 @@
-module ElmUIApp.Actor.TodoItem exposing (..)
+module TodoApp.Actor.TodoItem exposing (..)
 
 import Webbhuset.ActorSystem as System
-import Webbhuset.ElmUI.Actor as Actor exposing (Actor)
+import Webbhuset.Actor as Actor exposing (Actor)
 import Webbhuset.PID exposing (PID)
-import ElmUIApp.Msg as Msg exposing (Msg)
-import ElmUIApp.Component.TodoItem as TodoItem
+import TodoApp.Msg as Msg exposing (Msg)
+import TodoApp.Component.TodoItem as TodoItem
 
 
 type alias Model =

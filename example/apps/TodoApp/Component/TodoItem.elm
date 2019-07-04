@@ -1,15 +1,13 @@
-module ElmUIApp.Component.TodoItem exposing
+module TodoApp.Component.TodoItem exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
     , component
     )
 
-import Element exposing (Element)
-import Webbhuset.ElmUI.Component as Component exposing (PID)
+import Html exposing (Html)
+import Webbhuset.Component as Component exposing (PID)
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
-
-
 
 
 type MsgIn
@@ -63,9 +61,9 @@ update msgIn model =
             )
 
 
-view : Model -> Element MsgIn
+view : Model -> Html MsgIn
 view model =
-    Element.column
+    Html.div
         []
-        [ Element.text "Empty Component"
+        [ Html.text "Todo item"
         ]

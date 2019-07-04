@@ -1,13 +1,13 @@
-module ElmUIApp.Bootstrap exposing (..)
+module TodoApp.Bootstrap exposing (..)
 
 
 import Webbhuset.ActorSystem as System
-import ElmUIApp.Msg as Msg
-import ElmUIApp.ActorName as ActorName
+import TodoApp.Msg as Msg
+import TodoApp.ActorName as ActorName
 
-import ElmUIApp.Actor.TodoList as TodoList
-import ElmUIApp.Actor.TodoItem as TodoItem
-import ElmUIApp.Actor.TodoService as TodoService
+import TodoApp.Actor.TodoList as TodoList
+import TodoApp.Actor.TodoItem as TodoItem
+import TodoApp.Actor.TodoService as TodoService
 
 
 type Model

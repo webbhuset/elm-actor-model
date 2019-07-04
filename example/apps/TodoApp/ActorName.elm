@@ -1,4 +1,4 @@
-module ElmUIApp.ActorName exposing (..)
+module TodoApp.ActorName exposing (..)
 
 
 type ActorName

@@ -1,4 +1,4 @@
-module ElmUIApp.Component.TodoService exposing
+module TodoApp.Component.TodoService exposing
     ( Config
     , MsgIn(..)
     , MsgOut(..)

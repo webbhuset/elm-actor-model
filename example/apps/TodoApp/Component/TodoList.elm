@@ -1,13 +1,13 @@
-module ElmUIApp.Component.TodoList exposing
+module TodoApp.Component.TodoList exposing
     ( MsgIn(..)
     , MsgOut(..)
     , Model
     , component
     )
 
-import Webbhuset.ElmUI.Component as Component exposing (PID)
+import Webbhuset.Component as Component exposing (PID)
 import Webbhuset.Component.SystemEvent as SystemEvent exposing (SystemEvent)
-import Element exposing (Element)
+import Html exposing (Html)
 
 
 type MsgIn
@@ -75,12 +75,12 @@ update msgIn model =
             )
 
 
-view : (MsgIn -> msg) -> Model -> (PID -> Element msg) -> Element msg
+view : (MsgIn -> msg) -> Model -> (PID -> Html msg) -> Html msg
 view toSelf model renderPID =
-    Element.column
+    Html.div
         []
-        [ Element.el [] (Element.text "Layout Component" )
+        [ Html.h2 [] [ Html.text "Todo list" ]
         , model.children
             |> List.map renderPID
-            |> Element.column []
+            |> Html.div []
         ]
