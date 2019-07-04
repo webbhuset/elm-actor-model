@@ -1,5 +1,8 @@
 # Actor model in Elm
 
+Don't use this for production code (yet).
+I'm working on a few changes to the API that will be breaking changes.
+
 ## Concepts
 
 Some concepts / vocabulary.
@@ -20,7 +23,6 @@ There are three types of components:
 - Layout Component
 
 See Webbhuset.Component for more info.
-
 
 ### Actor
 
